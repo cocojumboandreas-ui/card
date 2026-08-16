@@ -14,8 +14,11 @@ GameConfig.Levels = 6
 GameConfig.EncountersPerLevel = 2 -- zwykłe + Strażnik
 
 -- 12 progów do zbicia sumą zagrań w starciu. Starcia 1-8: ~×1.7/starcie (zaciskanie, NIE ruszać —
--- Faza 3 walidacja potwierdziła, że działa). Starcia 9-12 (ZMIANA 3, Faza 3 balance pass): spłaszczone
--- do ~×1.45-1.5/starcie — poprzednie ×1.67-1.85 rosło szybciej niż jakiekolwiek osiągalne źródło mocy.
+-- Faza 3 walidacja potwierdziła, że działa).
+-- Starcia 9-12 (ZMIANA 5, Faza 3, po naprawie harnessu + dodaniu pełnego smart-bota z wymianami i
+-- zwojami jako proxy człowieka): ZMIANA 3 spłaszczyła krok do ~×1.45-1.5, co dawało naive-bota w
+-- widełkach (44-52%), ALE pełny smart-bot (proxy myślącego człowieka, z wymianami+zwojami) robił
+-- 72% -- za łatwo. Krok podniesiony z powrotem do ~×1.575/starcie (cel człowieka 30-55%, nie bota).
 GameConfig.Thresholds = {
 	100,
 	180,
@@ -25,10 +28,10 @@ GameConfig.Thresholds = {
 	1600,
 	2700,
 	4500,
-	6800,
-	10000,
-	14500,
-	21000,
+	7100,
+	11200,
+	17600,
+	27700,
 }
 
 -- Nadwyżka (Wynik − próg) → bonusowe złoto, z twardym capem (odpowiedź #14, Wariant B).
