@@ -40,8 +40,8 @@ do
 	local spell = { spellId = "Echo", baseMoc = 20, baseRezonans = 2 }
 	local runState = { totems = { TotemConfig.Totems.frostfawn } }
 	local result = ScoreEngine.score(runes, spell, runState, nil)
-	-- Water(4): power 20 -> x2.7 (eskalacja Faza 3 runda 2) = 54. Fire(2): power 10 (bez zmian).
-	-- Moc = 20(spell) + 54 + 10 = 84.
+	-- Water(4): power 20 -> x2.7 (Faza 3 runda 6: cięcie z rundy 5 wycofane, zepsuty harness) = 54.
+	-- Fire(2): power 10 (bez zmian). Moc = 20(spell) + 54 + 10 = 84.
 	check("Frostfawn multiplies Water rune Moc: moc == 84", result.moc == 84)
 	check("Frostfawn: finalScore == 168", result.finalScore == 168)
 end
@@ -72,13 +72,13 @@ do
 	local mocMultOnTriada =
 		{ id = "synthMult", name = "synthMult", tier = "Common", phase = "onScore", condition = "spellIs", conditionArg = "Triada", effect = { mocMult = 2 } }
 
-	-- moc bez totemów = 40(spell) + 20*3(runy, value4->power20) = 100. Merlynx perTrigger=40 (eskalacja
-	-- Faza 3 runda 2).
+	-- moc bez totemów = 40(spell) + 20*3(runy, value4->power20) = 100. Merlynx perTrigger=32 (Faza 3
+	-- runda 4: korekta w dół z 40).
 	local merlynxFirst = ScoreEngine.score(runes, spell, { totems = { TotemConfig.Totems.merlynx, mocMultOnTriada } }, nil)
 	local multFirst2 = ScoreEngine.score(runes, spell, { totems = { mocMultOnTriada, TotemConfig.Totems.merlynx } }, nil)
-	-- Merlynx-then-mult: (100+40)*2 = 280. mult-then-Merlynx: (100*2)+40 = 240.
-	check("Merlynx-then-mult moc == 280", merlynxFirst.moc == 280)
-	check("mult-then-Merlynx moc == 240", multFirst2.moc == 240)
+	-- Merlynx-then-mult: (100+32)*2 = 264. mult-then-Merlynx: (100*2)+32 = 232.
+	check("Merlynx-then-mult moc == 264", merlynxFirst.moc == 264)
+	check("mult-then-Merlynx moc == 232", multFirst2.moc == 232)
 	check("real-totem order changes finalScore too", merlynxFirst.finalScore ~= multFirst2.finalScore)
 end
 

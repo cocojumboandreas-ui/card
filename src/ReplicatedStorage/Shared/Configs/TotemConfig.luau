@@ -27,6 +27,18 @@ local TotemConfig = {}
 -- ratio spadła poniżej 1.0 już na starciu 8, 0/25 ukończeń). Wszystkie perTrigger ~x3, wszystkie
 -- mult-factory podniesione proporcjonalnie do kingosaura (1.5->2.2) — nie tylko przykładowa trójka
 -- z decyzji, cały roster spójnie, żeby run bez akurat TEGO jednego totemu też skorzystał.
+--
+-- Korekta w dół (Faza 3, runda 4, po naprawie thresholdWarden): mediana ratio na starciu 12 nadal
+-- 2.9-3.2x (target 1.0-1.3x) niezależnie od tuningu Strażnika, a ukończenia wyskoczyły do 64-76%
+-- (target 30-60%) — SKALUJĄCE totemy rosną cały run bez limitu, więc to one, nie Strażnik, ciągną
+-- late-game overshoot. Cięcie ~20-33% na wszystkich 5 (multiplikatywne bez zmian).
+--
+-- Korekta w dół (Faza 3, runda 5, WYCOFANA w rundzie 6): cięcie multiplikatywnych o ~15% było oparte
+-- o walidację 25-seedów ze ZEPSUTYM harnessem (PlayService.play wołany ze złym argumentem — pcall
+-- łykał błąd, każdy seed "przegrywał" starcie 1 z ratio 0.00, więc żadna z liczb rund 2-5 nie była
+-- realna). Po naprawie harnessu (runda 6): starcie 12 wychodzi 1.11-1.15x (W WIDEŁKACH) już na
+-- wartościach rundy 4, a ukończenia spadły do 16% z klifem na starciu 8 — runda 5 cięła coś, co nie
+-- było przewinieniem. Wartości MULTIPLIKATYWNE przywrócone do stanu sprzed rundy 5.
 TotemConfig.Totems = {
 	-- Common starter foursome: +20 Moc flat when the play contains their element.
 	capybop = {
@@ -144,7 +156,7 @@ TotemConfig.Totems = {
 		phase = "onScore",
 		condition = "exactPlayedCount",
 		conditionArg = 2,
-		effect = { scalingFlat = { stat = "rez", perTrigger = 3 } },
+		effect = { scalingFlat = { stat = "rez", perTrigger = 2 } },
 	} :: TotemDef,
 
 	blobby = {
@@ -154,7 +166,7 @@ TotemConfig.Totems = {
 		phase = "onScore",
 		condition = "always",
 		conditionArg = nil,
-		effect = { scalingFlat = { stat = "moc", perTrigger = 15 } },
+		effect = { scalingFlat = { stat = "moc", perTrigger = 12 } },
 	} :: TotemDef,
 
 	coinpurr = {
@@ -164,7 +176,7 @@ TotemConfig.Totems = {
 		phase = "onPlay",
 		condition = "always",
 		conditionArg = nil,
-		effect = { scalingGold = { perTrigger = 4 } },
+		effect = { scalingGold = { perTrigger = 3 } },
 	} :: TotemDef,
 
 	lavacat = {
@@ -175,7 +187,7 @@ TotemConfig.Totems = {
 		phase = "onScore",
 		condition = "always",
 		conditionArg = nil,
-		effect = { scalingFlat = { stat = "rez", perTrigger = 3 } },
+		effect = { scalingFlat = { stat = "rez", perTrigger = 2 } },
 	} :: TotemDef,
 
 	merlynx = {
@@ -185,7 +197,7 @@ TotemConfig.Totems = {
 		phase = "onScore",
 		condition = "spellIs",
 		conditionArg = "Triada",
-		effect = { scalingFlat = { stat = "moc", perTrigger = 40 } },
+		effect = { scalingFlat = { stat = "moc", perTrigger = 32 } },
 	} :: TotemDef,
 }
 

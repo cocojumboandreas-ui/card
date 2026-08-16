@@ -38,7 +38,7 @@ do
 		totemState = {},
 	}
 	local r2 = TotemEngine.apply({ TotemConfig.Totems.quackers }, "onScore", ctx2)
-	check("Quackers fires on exactly 2 played", r2[1].applies == true and r2[1].delta.rezFlat == 3)
+	check("Quackers fires on exactly 2 played", r2[1].applies == true and r2[1].delta.rezFlat == 2)
 
 	local ctx3 = {
 		playedRunes = { { element = "Fire", value = 1 }, { element = "Water", value = 2 }, { element = "Nature", value = 3 } },
@@ -55,12 +55,12 @@ do
 	local totemState = {}
 	local ctx1 = { playedRunes = {}, spellId = "Iskra", totemState = totemState }
 	local r1 = TotemEngine.apply({ TotemConfig.Totems.blobby }, "onScore", ctx1)
-	check("Blobby 1st trigger -> mocFlat 15 (perTrigger 15 * stack 1)", r1[1].delta.mocFlat == 15)
+	check("Blobby 1st trigger -> mocFlat 12 (perTrigger 12 * stack 1)", r1[1].delta.mocFlat == 12)
 	totemState.blobby = r1[1].statePatch -- caller (PlayService) persists this; simulated here
 
 	local ctx2 = { playedRunes = {}, spellId = "Iskra", totemState = totemState }
 	local r2 = TotemEngine.apply({ TotemConfig.Totems.blobby }, "onScore", ctx2)
-	check("Blobby 2nd trigger -> mocFlat 30 (perTrigger 15 * stack 2)", r2[1].delta.mocFlat == 30)
+	check("Blobby 2nd trigger -> mocFlat 24 (perTrigger 12 * stack 2)", r2[1].delta.mocFlat == 24)
 end
 
 -- phase filtering: Coinpurr is onPlay, must NOT fire under onScore.
@@ -69,7 +69,7 @@ do
 	local rOnScore = TotemEngine.apply({ TotemConfig.Totems.coinpurr }, "onScore", ctx)
 	check("Coinpurr does not appear under onScore phase", #rOnScore == 0)
 	local rOnPlay = TotemEngine.apply({ TotemConfig.Totems.coinpurr }, "onPlay", ctx)
-	check("Coinpurr fires under onPlay with +4 gold (scalingGold 1st trigger)", rOnPlay[1].applies == true and rOnPlay[1].delta.goldFlat == 4)
+	check("Coinpurr fires under onPlay with +3 gold (scalingGold 1st trigger)", rOnPlay[1].applies == true and rOnPlay[1].delta.goldFlat == 3)
 end
 
 -- scalingFlat (Lavacat, rez axis): stacks persist across calls via totemState threading,
@@ -78,17 +78,17 @@ do
 	local totemState = {}
 	local ctxPlay1 = { playedRunes = {}, spellId = "Nawalnica", totemState = totemState }
 	local r1 = TotemEngine.apply({ TotemConfig.Totems.lavacat }, "onScore", ctxPlay1)
-	check("Lavacat 1st trigger -> +3 Rez", r1[1].delta.rezFlat == 3)
+	check("Lavacat 1st trigger -> +2 Rez", r1[1].delta.rezFlat == 2)
 	totemState.lavacat = r1[1].statePatch -- caller (PlayService) persists this; simulated here
 
 	local ctxPlay2 = { playedRunes = {}, spellId = "Iskra", totemState = totemState }
 	local r2 = TotemEngine.apply({ TotemConfig.Totems.lavacat }, "onScore", ctxPlay2)
-	check("Lavacat 2nd trigger (any spell, condition=always) -> +6 Rez", r2[1].delta.rezFlat == 6)
+	check("Lavacat 2nd trigger (any spell, condition=always) -> +4 Rez", r2[1].delta.rezFlat == 4)
 	totemState.lavacat = r2[1].statePatch
 
 	local ctxPlay3 = { playedRunes = {}, spellId = "Nawalnica", totemState = totemState }
 	local r3 = TotemEngine.apply({ TotemConfig.Totems.lavacat }, "onScore", ctxPlay3)
-	check("Lavacat 3rd trigger -> +9 Rez", r3[1].delta.rezFlat == 9)
+	check("Lavacat 3rd trigger -> +6 Rez", r3[1].delta.rezFlat == 6)
 end
 
 -- procChance via SeedUtil "totemProc" stream (synthetic totem — not in ★MVP, covered here for
