@@ -15,6 +15,9 @@ export type TotemDef = {
 	condition: string,
 	conditionArg: any,
 	effect: { [string]: any },
+	collectionScoped: boolean?, -- true = bonus źródło z kolekcji/gamepassów (Architektura zasada #12);
+	-- ScoreEngine filtruje takie totemy gdy run.mode=="ranked". Żaden totem z RunShopService (per-run
+	-- pula) tego nie ustawia -- pole istnieje dla przyszłych bonusów z IndexService/gamepassów (Faza 2b+).
 }
 
 export type TotemCtx = {

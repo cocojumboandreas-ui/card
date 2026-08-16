@@ -43,4 +43,18 @@ GameConfig.ExcessGoldCap = 50 -- max złota z nadwyżki na jedno starcie
 -- pod tą nazwą; mnożone przez Strażnikowe rewardMult, np. thresholdWarden x2).
 GameConfig.EncounterGoldReward = 20
 
+-- Bazowe Staty v1 (Architektura §2, tabela StatProfileService) — neutralne wartości PRZED deltami
+-- skilli/kolekcji. Faza 2a czyta tylko luck/essenceMult/extraPlays/extraSwaps/startPickSize
+-- (skille dopiero w Fazie 2b); offlineRate/fastRoll czekają na OfflineEarnService/RollService, ale
+-- żyją tu już teraz, żeby dołożenie tamtych serwisów nie wymagało zmiany kształtu Stats.
+GameConfig.StatBase = {
+	luck = 1,
+	essenceMult = 1,
+	extraPlays = 0,
+	extraSwaps = 0,
+	startPickSize = 1,
+	offlineRate = 0,
+	fastRoll = false,
+}
+
 return GameConfig

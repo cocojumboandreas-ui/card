@@ -19,6 +19,10 @@ local SeedUtil = require(Shared.SeedUtil)
 local RuneConfig = require(Shared.Configs.RuneConfig)
 local GameConfig = require(Shared.Configs.GameConfig)
 local GuardianConfig = require(Shared.Configs.GuardianConfig)
+local EssenceConfig = require(Shared.Configs.EssenceConfig)
+
+local Framework = ReplicatedStorage:WaitForChild("Framework")
+local ServiceRegistry = require(Framework:WaitForChild("ServiceRegistry"))
 
 type Rune = RuneConfig.Rune
 type Stream = SeedUtil.Stream
@@ -28,6 +32,9 @@ type Guardian = GuardianConfig.Guardian
 export type RunState = {
 	seed: number,
 	mode: string, -- "free" | "ranked" (iron rule #12 — parametr istnieje, zachowanie na razie identyczne)
+	owner: Player?, -- Faza 2a: ustawiane WYŁĄCZNIE przez startRunForPlayer; nil dla anonimowych runów
+	-- (balance harness, testy) — kod na `run.owner` musi zawsze traktować nil jako "brak gracza",
+	-- nigdy nie zakładać obecności.
 	streams: { [string]: Stream },
 
 	level: number, -- 1..6
@@ -142,6 +149,7 @@ function RunSessionService.startRun(seed: number, mode: string?): RunState
 	local run: RunState = {
 		seed = seed,
 		mode = mode or "free",
+		owner = nil,
 		streams = streams,
 
 		level = 1,
@@ -200,6 +208,7 @@ function RunSessionService.endEncounter(run: RunState, voluntary: boolean?): { w
 		if run.encounterIndex > GameConfig.Levels * GameConfig.EncountersPerLevel then
 			run.status = "won"
 			logLine(run, "RUN WON: all 12 encounters cleared.")
+			RunSessionService._awardRunEssence(run)
 		else
 			RunSessionService.startEncounter(run)
 		end
@@ -232,7 +241,62 @@ function RunSessionService.endEncounter(run: RunState, voluntary: boolean?): { w
 		run,
 		`RUN LOST at encounter {run.encounterIndex}: score={run.score} threshold={run.threshold} voluntary={tostring(voluntary or false)}`
 	)
+	RunSessionService._awardRunEssence(run)
 	return { won = false, excessGold = excessGold, baseGold = 0, revived = false }
+end
+
+-- ── Faza 2a: player ownership + Esencja ──────────────────────────────────────────────────────
+-- Runy anonimowe (balance harness, testy) nadal wołają startRun()/endEncounter() bezpośrednio i
+-- nigdy nie dotykają tej sekcji — _runs/owner/_economy istnieją WYŁĄCZNIE dla realnych graczy.
+
+local _runs: { [Player]: RunState } = {}
+local _profileService = nil
+local _statProfile = nil
+local _economy = nil
+
+-- Konwersja ulotnego złota runu -> persystentnej Esencji, wołana WYŁĄCZNIE przy przejściu
+-- run.status w "won"/"lost" (koniec runu). run.owner==nil (run anonimowy) -> no-op.
+function RunSessionService._awardRunEssence(run: RunState)
+	if run.owner == nil or _economy == nil then
+		return
+	end
+	local gained = _economy.AwardEssence(run.owner, math.floor(run.gold * EssenceConfig.RunGoldToEssenceRate), "run")
+	logLine(run, `essence awarded to owner: {gained} (from {run.gold}g × {EssenceConfig.RunGoldToEssenceRate})`)
+end
+
+-- StartRun dla realnego gracza: jak startRun(), plus czyta StatProfileService.Get(player) dla
+-- startowych bonusów (extraPlays/extraSwaps — startPickSize/luck czekają na RollService, Faza 2b)
+-- i rejestruje run pod graczem w _runs.
+function RunSessionService.startRunForPlayer(player: Player, seed: number, mode: string?): RunState
+	local run = RunSessionService.startRun(seed, mode)
+	run.owner = player
+
+	local stats = _statProfile and _statProfile.Get(player)
+	if stats then
+		run.playsRemaining += (stats.extraPlays or 0)
+		run.swapsRemaining += (stats.extraSwaps or 0)
+	end
+
+	_runs[player] = run
+	return run
+end
+
+function RunSessionService.getRun(player: Player): RunState?
+	return _runs[player]
+end
+
+function RunSessionService.Init() end
+
+function RunSessionService.Start()
+	_profileService = ServiceRegistry.get("ProfileService")
+	_statProfile = ServiceRegistry.get("StatProfileService")
+	_economy = ServiceRegistry.get("EconomyService")
+
+	-- Lekcja Bug 2B (patrz ProfileService): sprzątanie na ProfileReleasing, NIE na osobnym
+	-- Players.PlayerRemoving — inaczej wyścig z EndSession przy zamykaniu profilu.
+	_profileService.ProfileReleasing:Connect(function(player: Player)
+		_runs[player] = nil
+	end)
 end
 
 return RunSessionService

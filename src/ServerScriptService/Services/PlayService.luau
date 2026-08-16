@@ -80,7 +80,7 @@ function PlayService.play(run: RunState, indices: { number }): PlayOutcome
 	local handEval = HandEvaluator.evaluate(playedRunes, run.spellUpgrades)
 	assert(handEval ~= nil, "PlayService: HandEvaluator returned nil for a non-empty play")
 
-	local scoreCtx = { rngStream = run.streams.totemProc }
+	local scoreCtx = { rngStream = run.streams.totemProc, ranked = run.mode == "ranked" }
 	local scoreResult = ScoreEngine.score(playedRunes, {
 		spellId = handEval.spellId,
 		baseMoc = handEval.baseMoc,

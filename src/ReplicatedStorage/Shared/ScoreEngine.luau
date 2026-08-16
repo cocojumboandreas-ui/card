@@ -37,6 +37,11 @@ export type RunState = {
 
 export type ScoreCtx = {
 	rngStream: any?, -- SeedUtil Stream "totemProc"; tylko dla totemów z procChance
+	ranked: boolean?, -- Architektura zasada #12: gdy true, totemy oznaczone collectionScoped=true są
+	-- pomijane (pula ranked jest neutralna, bonusy kolekcji/gamepassów wyłączone). Faza 2a nic tego
+	-- pola nie ustawia na true i żaden totem nie ma collectionScoped=true -- filtr jest no-opem do
+	-- czasu IndexService/gamepassów (Faza 2b+), ale ścieżka istnieje żeby dołożenie ranked było
+	-- jedną zmianą (ustawić flagę), nie refaktorem ScoreEngine.
 }
 
 export type BreakdownStep = {
@@ -61,6 +66,15 @@ function ScoreEngine.score(playedRunes: { Rune }, spellResult: SpellResult, runS
 	local rs: RunState = runState or {}
 	local sctx: ScoreCtx = ctx or {}
 	local totems = rs.totems or {}
+	if sctx.ranked then
+		local neutral = {}
+		for _, t in totems do
+			if not t.collectionScoped then
+				table.insert(neutral, t)
+			end
+		end
+		totems = neutral
+	end
 	local totemState = rs.totemState or {}
 	local nullified = rs.elementNullifiers or {}
 
