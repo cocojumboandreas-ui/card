@@ -29,6 +29,7 @@ local ORDER = {
 	"RunShopService",
 	"LeaderboardService", -- Faza 3: nasłuch RunSessionService.RunEnded, zależy tylko na odczyt (get)
 	"StreakService", -- Faza 3: nasłuch ProfileService.ProfileLoaded, zależy tylko na odczyt (get)
+	"QuestService", -- Faza 3: nasłuch PlayService/RunSessionService/RollService sygnałów, tylko odczyt (get)
 }
 
 for _, name in ipairs(ORDER) do

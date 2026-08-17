@@ -346,12 +346,49 @@ poprawne**. Pełny claim flow przez `eval_client_runtime`+`InvokeServer`: count 
 `reached`/`claimed` per próg — **wszystko zgodne**. `get_runtime_logs filter="StreakService"`:
 tylko `Init`/`Start`, zero `warn`.
 
+### Krok #7 — QuestService — ZROBIONE, zweryfikowane live (2026-08-17)
+
+Nowe pliki: `QuestConfig.luau` (Shared/Configs, pula 4 questow: `playNawalnica`/`defeatGuardians`/
+`winRuns`/`rollTotems`, `DailyQuestCount=3`). `QuestService.luau` (ServerScriptService/Services).
+2 nowe remoty: `ClaimQuest` (RF, C->S questId:string), `GetQuestState` (RF, C->S ()). Wpiety w
+Bootstrap ORDER po `StreakService`.
+
+Mechanika: zero nowych sygnalow — `eventType` w puli mapuje sie na 4 sygnaly juz istniejace
+(`PlayService.SpellPlayed`, `RunSessionService.GuardianDefeated`/`RunEnded` filtrowany na
+`status=="won"`, `RollService.Rolled` filtrowany na `result.ok`), zgodnie z istniejaca w kodzie
+zasada anty-duplikacji sygnalow (komentarz w `RollService.Rolled`). Losowanie dziennej trojki:
+Fisher-Yates calej puli, pierwsze `DailyQuestCount`, swiezy `Random.new()` (nie deterministyczny
+jak Seed Dnia — questy nie musza byc identyczne miedzy graczami). `ensureTodayQuests` wolane NA
+WEJSCIU kazdego handlera progresu (nie tylko `ProfileLoaded`), wiec przekroczenie polnocy UTC
+mid-session poprawnie przeladowuje liste przy pierwszym kolejnym baseline, bez wymaganego relogu —
+ten sam wzorzec co czyszczenie starych `dateKey` w LeaderboardService. Claim jawny (ten sam wzorzec
+co `StreakService.Claim`/`ClaimIndexLuck`): `UnknownQuest`/`AlreadyClaimed`/`NotReached` jako
+reason, `AwardEssence` tylko przy sukcesie.
+
+Weryfikacja live (solo playtest + `eval_server_runtime`/`eval_client_runtime`):
+
+| Sprawdzenie | Wynik |
+|---|---|
+| Reroll na `ProfileLoaded` | wylosowane 3/4 z puli (`defeatGuardians`/`winRuns`/`rollTotems`), `dateKey` dzisiejszy — **poprawne** |
+| `GuardianDefeated` x1 potem x2 (target 2) | progress 1 -> 2, **poprawne zliczanie** |
+| `Rolled({ok=true})` x3 + `Rolled({ok=false})` x1 (target 3) | progress=3 (nieudany roll **nie liczy sie**) — **poprawne** |
+| `RunEnded({status="lost"})` potem `RunEnded({status="won"})` (target 1) | progress 0 -> 1 (przegrana **nie liczy sie**) — **poprawne** |
+| `ClaimQuest("bogusId")` | `UnknownQuest` — **poprawne** |
+| `ClaimQuest("defeatGuardians")` (progress=target) | `ok=true, essence=60` — **poprawne** |
+| `ClaimQuest("defeatGuardians")` ponownie | `AlreadyClaimed` — **poprawne** |
+| Recznie cofniety progress ponizej target + `Claim` | `NotReached` — **poprawne** |
+| `GetQuestState` po serii claimow | lista z poprawnym `progress`/`claimed`/`desc`/`target`/`rewardEssence` per quest — **poprawne** |
+| `get_runtime_logs filter="QuestService"` | tylko `Init`/`Start`, zero `warn` |
+
+Tygodniowy/VIP-gamepass +1 quest dzienny (GDD, Faza 4 monetyzacja) **swiadomie NIE dolozony** —
+hook zostawiony w komentarzu `QuestConfig.DailyQuestCount`.
+
 ## Stan git
 
-- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu `c2f1507`
-  (LeaderboardService).
-- Biezacy batch StreakService (`StreakConfig.luau` nowy, `StreakService.luau` nowy, `Net.luau`,
-  `Bootstrap.server.luau`, `ProfileService.luau`, ten plik) zmieniony lokalnie + wypchniety do
-  zywego Studio, **jeszcze niescommitowany** — kolejny krok w tej sesji.
+- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu `82e5331`
+  (StreakService).
+- Biezacy batch QuestService (`QuestConfig.luau` nowy, `QuestService.luau` nowy, `Net.luau`,
+  `Bootstrap.server.luau`, ten plik) zmieniony lokalnie + wypchniety do zywego Studio,
+  **jeszcze niescommitowany** — kolejny krok w tej sesji.
 - `git status` czysty poza tym batchem. `cardsw/` w `.gitignore`, nie pojawia sie juz jako
   untracked.

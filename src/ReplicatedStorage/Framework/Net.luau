@@ -37,6 +37,8 @@ local REMOTES: { [string]: string } = {
 	LeaderboardSync = "RemoteEvent", -- S->C (kind:"daily"|"allTime", list:{{rank,userId,score}}) — push po każdym cache-refresh (co 60s)
 	ClaimStreak = "RemoteFunction", -- C->S (days:number) -> {ok, essence?, reason?}
 	GetStreakState = "RemoteFunction", -- C->S () -> {ok, count, milestones:{{days,essence,reached,claimed}}}
+	ClaimQuest = "RemoteFunction", -- C->S (questId:string) -> {ok, essence?, reason?}
+	GetQuestState = "RemoteFunction", -- C->S () -> {ok, dateKey, list:{{questId,desc,target,rewardEssence,progress,claimed}}}
 }
 
 local Net = {}
