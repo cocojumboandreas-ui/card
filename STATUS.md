@@ -179,9 +179,32 @@ Toast po stronie klienta NIE zweryfikowany wizualnie (auto-dismiss 6s zdazyl zni
 zrzutem ekranu) — kod uzywa tych samych `UIFactory.panel/label/button`, ktore juz dzialaja w
 `IndexController`, wiec ryzyko wizualne niskie, ale nie 100% potwierdzone.
 
-**Nastepny krok: krok 0/#2 — sygnaly (RunEnded/SpellPlayed/GuardianDefeated/TotemRolled).**
+### Krok 0/#2 — sygnaly — ZROBIONE, zweryfikowane live (2026-08-17)
+
+Dedup (dopracowanie #1 usera): `TotemRolled` z Architektury §2 to JEST juz istniejacy
+`RollService.Rolled` (payload go pokrywa i przewyzsza: totemId/tier/variant +
+isNewDiscovery/pityTriggered/essence) — swiadomie NIE stworzony drugi sygnal, tylko komentarz w
+`RollService.Init()` dokumentujacy decyzje.
+
+Nowe sygnaly (Signal.new(), nie remote'y):
+- `RunSessionService.RunEnded(player, {status, seed, mode, encounterIndex, level, gold})` —
+  odpalany z 3 miejsc: won/lost w `endEncounter`, "abandoned" w `abandonRun` handlerze. Guard
+  `run.owner ~= nil` (runy anonimowe/balance-harness pomijane, tak samo jak `_awardRunEssence`).
+- `RunSessionService.GuardianDefeated(player, guardianId)` — w `endEncounter`, gdy `reached` i
+  `run.activeGuardian` byl ustawiony (przed nadpisaniem go w nastepnym `startEncounter`).
+- `PlayService.SpellPlayed(player, spellId, score)` — w `PlayService.play`, zaraz po policzeniu
+  `scoreResult.finalScore`.
+
+Zweryfikowane solo playtestem (`RunSessionService.startRunForPlayer` + jeden prawdziwy
+`PlayService.play`, potem fast-forward `endEncounter` przez wszystkie 12 starc): SpellPlayed
+odpalil raz z prawdziwego zagrania, GuardianDefeated 6x (3 straznikow × 2 poziomy kazdy, poprawne
+id: hungryShadow/elementEater/thresholdWarden), RunEnded raz na koncu z status=won, poprawnym
+seed/mode/gold. Wszystkie 4 sygnaly (liczac TotemRolled=Rolled) potwierdzone dzialajace.
+
+**Nastepny krok: SeedService (`DailySeed`/`RandomSeed`/`FriendSeed`) — czysta funkcja, zero zaleznosci.**
 
 ## Stan git
 
-- Branch `main`, w pelni zsynchronizowany z `origin/main` (push potwierdzony, `2949a33..032cfec`).
+- Branch `main`, w pelni zsynchronizowany z `origin/main` (push potwierdzony, `032cfec..9201931`
+  + biezacy commit sygnalow ponizej).
 - `git status` czysty. `cardsw/` w `.gitignore`, nie pojawia sie juz jako untracked.

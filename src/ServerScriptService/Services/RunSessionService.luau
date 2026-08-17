@@ -23,6 +23,7 @@ local EssenceConfig = require(Shared.Configs.EssenceConfig)
 
 local Framework = ReplicatedStorage:WaitForChild("Framework")
 local ServiceRegistry = require(Framework:WaitForChild("ServiceRegistry"))
+local Signal = require(Framework:WaitForChild("Signal"))
 
 type Rune = RuneConfig.Rune
 type Stream = SeedUtil.Stream
@@ -204,11 +205,16 @@ function RunSessionService.endEncounter(run: RunState, voluntary: boolean?): { w
 			`Encounter {run.encounterIndex} CLEARED: score={run.score} threshold={run.threshold} excessGold={excessGold} baseGold={baseGold} totalGold={run.gold}`
 		)
 
+		if run.activeGuardian and run.owner then
+			RunSessionService.GuardianDefeated:Fire(run.owner, run.activeGuardian.id)
+		end
+
 		run.encounterIndex += 1
 		if run.encounterIndex > GameConfig.Levels * GameConfig.EncountersPerLevel then
 			run.status = "won"
 			logLine(run, "RUN WON: all 12 encounters cleared.")
 			RunSessionService._awardRunEssence(run)
+			RunSessionService._fireRunEnded(run)
 		else
 			RunSessionService.startEncounter(run)
 		end
@@ -242,7 +248,25 @@ function RunSessionService.endEncounter(run: RunState, voluntary: boolean?): { w
 		`RUN LOST at encounter {run.encounterIndex}: score={run.score} threshold={run.threshold} voluntary={tostring(voluntary or false)}`
 	)
 	RunSessionService._awardRunEssence(run)
+	RunSessionService._fireRunEnded(run)
 	return { won = false, excessGold = excessGold, baseGold = 0, revived = false }
+end
+
+-- Faza 3 sygnał RunEnded(player, result) — na nim wisi QuestService/LeaderboardService (Architektura
+-- §2 linia 78). Tylko realni gracze (run.owner ~= nil); anonimowe runy (balance harness) pomijane,
+-- tak samo jak _awardRunEssence. Wołane z 3 miejsc: won/lost tutaj, "abandoned" w Start() poniżej.
+function RunSessionService._fireRunEnded(run: RunState)
+	if run.owner == nil then
+		return
+	end
+	RunSessionService.RunEnded:Fire(run.owner, {
+		status = run.status,
+		seed = run.seed,
+		mode = run.mode,
+		encounterIndex = run.encounterIndex,
+		level = run.level,
+		gold = run.gold,
+	})
 end
 
 -- ── Faza 2a: player ownership + Esencja ──────────────────────────────────────────────────────
@@ -321,7 +345,10 @@ function RunSessionService.snapshot(run: RunState): { [string]: any }
 	}
 end
 
-function RunSessionService.Init() end
+function RunSessionService.Init()
+	RunSessionService.RunEnded = Signal.new() -- (player, {status, seed, mode, encounterIndex, level, gold})
+	RunSessionService.GuardianDefeated = Signal.new() -- (player, guardianId)
+end
 
 function RunSessionService.Start()
 	_profileService = ServiceRegistry.get("ProfileService")
@@ -371,6 +398,7 @@ function RunSessionService.Start()
 		RunSessionService._awardRunEssence(run)
 		run.status = "abandoned"
 		logLine(run, "RUN ABANDONED (voluntary cash-out).")
+		RunSessionService._fireRunEnded(run)
 		runStateSync:FireClient(player, RunSessionService.snapshot(run))
 		_runs[player] = nil
 	end)

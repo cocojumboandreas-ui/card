@@ -131,6 +131,10 @@ function RollService.RollTotem(player: Player)
 end
 
 function RollService.Init()
+	-- Faza 3 krok 0: to JEST sygnał "TotemRolled" z Architektury §2 linia 78 (payload {totemId, tier,
+	-- variant, isNewDiscovery, ...} pokrywa i przewyższa `(player, totemId, rarityN, variant)`) —
+	-- świadomie NIE tworzymy drugiego sygnału, żeby nie duplikować. QuestService/IndexService/
+	-- AnnouncementService subskrybują TEN.
 	RollService.Rolled = Signal.new() -- (player, RollResult)
 end
 

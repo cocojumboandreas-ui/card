@@ -13,6 +13,7 @@ local TotemEngine = require(Shared.TotemEngine)
 
 local Framework = ReplicatedStorage:WaitForChild("Framework")
 local Net = require(Framework:WaitForChild("Net"))
+local Signal = require(Framework:WaitForChild("Signal"))
 
 local RunSessionService = require(script.Parent.RunSessionService)
 local RunShopService = require(script.Parent.RunShopService)
@@ -98,6 +99,10 @@ function PlayService.play(run: RunState, indices: { number }): PlayOutcome
 
 	applyTotemResults(run, scoreResult.totemResults)
 	run.score += scoreResult.finalScore
+
+	if run.owner then
+		PlayService.SpellPlayed:Fire(run.owner, handEval.spellId, scoreResult.finalScore)
+	end
 
 	-- onPlay phase (ekonomia, np. Coinpurr) — osobny wywołanie TotemEngine, osobna faza.
 	local onPlayResults = TotemEngine.apply(run.totems, "onPlay", {
@@ -200,7 +205,9 @@ local function maybeOpenShop(run: RunState, encounterResult: EncounterResult)
 	end
 end
 
-function PlayService.Init() end
+function PlayService.Init()
+	PlayService.SpellPlayed = Signal.new() -- Faza 3 (player, spellId, score) — QuestService nasłuchuje
+end
 
 function PlayService.Start()
 	local playRunes = Net.get("PlayRunes")
