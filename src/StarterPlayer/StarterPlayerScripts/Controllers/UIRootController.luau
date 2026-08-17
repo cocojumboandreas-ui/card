@@ -13,8 +13,10 @@ local ROOTS = {
 	{ name = "Hud", order = 10 },
 	{ name = "Hand", order = 15 },
 	{ name = "RunFlow", order = 20 },
+	{ name = "Roll", order = 25 }, -- Faza 2b: reveal rolla, nad RunFlow, pod Shop
 	{ name = "Shop", order = 30 },
 	{ name = "ScoreFx", order = 40 },
+	{ name = "Index", order = 45 }, -- Faza 2b: panel kolekcji, nad ScoreFx
 }
 
 local _guis: { [string]: ScreenGui } = {}

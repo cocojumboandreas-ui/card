@@ -3,6 +3,18 @@
 Ostatnia aktualizacja: 2026-08-17, koniec sesji Faza 2b (serwer, przed UI).
 Czytaj to + `git log` zamiast polegac na pamieci poprzedniej sesji.
 
+## Dyscyplina wywolan MCP (obowiazuje od 2026-08-17)
+
+Auto-compact w dlugich sesjach Studio bierze sie glownie z tresci wynikow narzedzi, nie z
+liczby serwerow MCP. Trzymaj sie:
+
+- `script_grep` / targetowane wyszukiwanie ZAMIAST pelnego `script_read`, gdy szukasz
+  konkretnej rzeczy w skrypcie.
+- Waski `path` / `max_depth` w `search_game_tree` / `inspect_instance` — nie dumpuj calego
+  Workspace, gdy potrzebny jest jeden fragment.
+- Screenshoty TYLKO gdy Andreas wprost prosi o wizualne potwierdzenie — nie profilaktycznie
+  po kazdej akcji. Jeden zrzut na koniec logicznego kawalka, nie seria.
+
 ## Faza 2b — zrobione (commit `a4a6317`, wypchniete na `origin/main`)
 
 Serwerowa warstwa rolli i kolekcji, PRZED UI:

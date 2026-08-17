@@ -1,12 +1,15 @@
 --!strict
 -- Controllers/HudController.luau (Architektura §3, kontroler #3) — pasek Esencji (zawsze widoczny)
--- + podczas runu: złoto, poziom/starcie, pasek Wynik/Próg. Przyciski do Roll/Indeks/Drzewko/Questy/
--- Sklep R$ z Architektury §3 NIE istnieją w 2a (te serwisy to Faza 2b+) -- świadomie pominięte,
--- nie placeholder-guziki donikąd.
+-- + podczas runu: złoto, poziom/starcie, pasek Wynik/Próg. Faza 2b (task #4, otwarte zadania
+-- STATUS.md): dopięte 2 wejścia -- Roll (RollRevealController.RequestRoll) i Indeks
+-- (IndexController.Open) -- w prawym górnym rogu, nad przyciskiem SHOP (widocznym tylko w runie,
+-- patrz RunShopController), więc zero kolizji z esencją/paskiem runu/barem totemów po lewej.
 
 local UIFactory = require(script.Parent.UIFactory)
 local UIRootController = require(script.Parent.UIRootController)
 local NetController = require(script.Parent.NetController)
+local RollRevealController = require(script.Parent.RollRevealController)
+local IndexController = require(script.Parent.IndexController)
 
 local HudController = {}
 
@@ -42,6 +45,22 @@ function HudController.Start()
 		BackgroundColor3 = Color3.fromRGB(255, 196, 61),
 	})
 	_essenceLabel = UIFactory.label(essenceBar, "Essence: 0", { TextColor3 = Color3.fromRGB(40, 30, 0) })
+
+	UIFactory.button(gui, "Indeks", {
+		Size = UDim2.new(0, 70, 0, 50),
+		Position = UDim2.new(1, -238, 0, 12),
+		BackgroundColor3 = Color3.fromRGB(90, 90, 200),
+	}, function()
+		IndexController.Open()
+	end)
+
+	UIFactory.button(gui, "Roll", {
+		Size = UDim2.new(0, 70, 0, 50),
+		Position = UDim2.new(1, -160, 0, 12),
+		BackgroundColor3 = Color3.fromRGB(200, 160, 60),
+	}, function()
+		RollRevealController.RequestRoll()
+	end)
 
 	_runRow = UIFactory.panel(gui, {
 		Size = UDim2.new(1, -24, 0, 70),

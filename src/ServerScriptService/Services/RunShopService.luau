@@ -19,6 +19,7 @@ local Net = require(Framework:WaitForChild("Net"))
 
 local RunSessionService = require(script.Parent.RunSessionService)
 type RunState = RunSessionService.RunState
+local IndexService = require(script.Parent.IndexService) -- IsDiscovered = "posiadane" (profile.totems), Start() ordered przed nami w Bootstrap
 
 local RunShopService = {}
 
@@ -26,18 +27,31 @@ local function logLine(run: RunState, msg: string)
 	table.insert(run.log, msg)
 end
 
--- Pula totemów NIE jeszcze posiadanych, w STABILNEJ (alfabetycznej po id) kolejności — TotemConfig
--- .Totems jest dict-em; pairs() nie gwarantuje kolejności między procesami, więc sortujemy jawnie,
--- żeby ten sam seed zawsze dawał tę samą ofertę niezależnie od hash-seed danego uruchomienia Luau.
+-- Stały starter (task #1, otwarte zadania STATUS.md): wszystkie tiery Common z TotemConfig — świeży
+-- gracz bez ani jednego rolla wciąż ma co kupić w pierwszym runie. Dziś to dokładnie 5 totemów
+-- (capybop/lotti/emberpup/voltmouse/shadowkit); jeśli MVP-15 kiedyś urośnie, ten filtr nadal
+-- łapie każdy nowy Common bez ręcznej listy.
+local STARTER_TIER = "Common"
+
+-- Pula totemów dostępnych w sklepie = (posiadane przez gracza, profile.totems ∩ TotemConfig, przez
+-- IndexService.IsDiscovered) UNION (stały starter Common) MINUS totemy już w TYM runie (run.totems,
+-- filtr niezmieniony). W STABILNEJ (alfabetycznej po id) kolejności — TotemConfig.Totems jest
+-- dict-em; pairs() nie gwarantuje kolejności między procesami, więc sortujemy jawnie, żeby ten sam
+-- seed zawsze dawał tę samą ofertę niezależnie od hash-seed danego uruchomienia Luau.
 local function availableTotemPool(run: RunState): { any }
-	local owned = {}
+	local excluded = {}
 	for _, t in run.totems do
-		owned[t.id] = true
+		excluded[t.id] = true
 	end
+
 	local pool = {}
 	for id, totem in TotemConfig.Totems do
-		if not owned[id] then
-			table.insert(pool, totem)
+		if not excluded[id] then
+			local isStarter = totem.tier == STARTER_TIER
+			local isOwned = run.owner ~= nil and IndexService.IsDiscovered(run.owner, id)
+			if isStarter or isOwned then
+				table.insert(pool, totem)
+			end
 		end
 	end
 	table.sort(pool, function(a, b)
@@ -45,6 +59,9 @@ local function availableTotemPool(run: RunState): { any }
 	end)
 	return pool
 end
+
+-- TODO (task #2, otwarte zadania STATUS.md): po Fazie 2b przepuścić harness z pulą=starter
+-- (świeży profil, zero rolli) i sprawdzić że completion rate nie spada poniżej 20%.
 
 local function rollTotemOffer(run: RunState): { [string]: any }?
 	local pool = availableTotemPool(run)
