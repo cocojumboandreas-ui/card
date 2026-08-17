@@ -111,7 +111,7 @@ Efekt uboczny live-testow: essence na koncie testowym "Onimushaa5" spadlo 1577->
 ProfileStore, nie sandbox — testy przez `eval_client_runtime` uzywaja prawdziwego profilu
 gracza).
 
-## Bramka D1 — pula=starter (2026-08-17) — ZDANA (full-smart), NAIVE do decyzji
+## Bramka D1 — pula=starter (2026-08-17) — ZAMKNIETA, PASS
 
 Uruchomione `tests/BalanceHarness.studio.luau` live w server VM (`eval_server_runtime`, solo
 playtest), n=50 seedow, `RunSessionService.startRun` (nie `startRunForPlayer`) daje `owner=nil`
@@ -123,13 +123,15 @@ zero rolli" bez zadnej modyfikacji harnessu:
 | FULL-SMART (proxy realnego gracza: najlepszy hand co ture, swapy, zuzywa zwoje) | **30% (15/50)** | 8:1 9:1 10:22 11:4 12:7 |
 | NAIVE (floor: zero decyzji, nigdy nie swapuje/nie kupuje strategicznie) | **2% (1/50)** | 6:1 7:5 8:16 9:7 10:19 11:1 |
 
-**Wynik wzgledem progu >=20%:** FULL-SMART przechodzi z zapasem (30%). NAIVE jest drastycznie
-ponizej (2%) — ale NAIVE z definicji tego harnessu ZAWSZE byl floorem/gorszym-przypadkiem, nie
-realistycznym proxy swiezego gracza (patrz naglowek `BalanceHarness.studio.luau`), wiec nie jest
-jasne czy to sam z siebie narusza intencje bramki D1 czy jest oczekiwane. Do potwierdzenia z
-Andreasem: czy FULL-SMART=30% wystarcza jako odpowiedz na D1, czy NAIVE=2% (spadek z ~18% przy
-starym/szerszym pool wedlug historycznej notatki w harnessie) to sygnal ze progi enc8-10 sa za
-ostre dla gracza bez zadnego totemu ponad-Common i wymaga tuningu przed Faza 3.
+**Decyzja Andreasa (2026-08-17): PASS, progi NIE zmieniane.**
+
+- FULL-SMART 30% na starter-puli vs 54% na pelnej kolekcji (Faza 3 balance, historyczna notatka w
+  harnessie) — dokladnie zamierzona progresja: swiezy gracz wygrywa ~co trzeci run bez zadnego
+  rolla, trudniej niz z pelna kolekcja, a ta roznica jest zaproszeniem do rollowania. To sedno D1.
+- NAIVE 2% jest OCZEKIWANE, nie sygnal do tuningu. NAIVE = bot bez wymian i bez strategii (podloga
+  z definicji, patrz naglowek harnessu). Skok 2% (bezmyslnie) -> 30% (z glowa) DOWODZI ze decyzje
+  gracza maja znaczenie — to jest sedno deckbuildera. Gdyby NAIVE robil 30%, gra bylaby za plytka.
+- Zaden dalszy tuning progow enc8-10 nie jest potrzebny przed Faza 3.
 
 Komentarz z wynikiem zapisany tez w `RunShopService.luau` przy `availableTotemPool`.
 
