@@ -41,6 +41,9 @@ local REMOTES: { [string]: string } = {
 	ClaimQuest = "RemoteFunction", -- C->S (questId:string) -> {ok, essence?, reason?}
 	GetQuestState = "RemoteFunction", -- C->S () -> {ok, dateKey, list:{{questId,desc,target,rewardEssence,progress,claimed}}}
 	AnnouncementSync = "RemoteEvent", -- S->C {name, totemId, tier, variant} — push z MessagingService:SubscribeAsync callbacku (patrz AnnouncementService)
+
+	-- Faza 4: monetyzacja
+	GetOddsTable = "RemoteFunction", -- C->S () -> {tiers:{{tier,pct}}, tiersNote, variants:{{id,pct}}, variantsExcluded, pity} (PolicyService, cache-owane raz po stronie serwera)
 }
 
 local Net = {}

@@ -20,6 +20,7 @@ local ORDER = {
 	"HudController",
 	"RunFlowController",
 	"StartPickController", -- Faza 4 Krok 0: modal picku startowego, po RunFlowController, niezależny od HUD-u
+	"MonetizationController", -- Faza 4 Krok 4: sklep Robux + gating tabelą szans, niezależny od HUD-u
 	"HandController",
 	"ScoreFxController",
 	"TotemBarController",

@@ -21,6 +21,7 @@ local ORDER = {
 	"StatProfileService",
 	"EconomyService",
 	"PurchaseService", -- Faza 4 Krok 2: ProcessReceipt + gamepass cache, zależy od Profile/Economy/Stat
+	"PolicyService", -- Faza 4 Krok 4: tabela szans (compliance), zero zależności, cienki config-reader
 	"OfflineEarnService", -- Faza 3: zależy tylko od Profile/Stat/Economy, zero zależności od runu
 	"IndexService",
 	"RollService",
