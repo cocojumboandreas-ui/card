@@ -14,6 +14,9 @@ local SpellConfig = require(Shared.Configs.SpellConfig)
 local ShopConfig = require(Shared.Configs.ShopConfig)
 local GameConfig = require(Shared.Configs.GameConfig)
 
+local Framework = ReplicatedStorage:WaitForChild("Framework")
+local Net = require(Framework:WaitForChild("Net"))
+
 local RunSessionService = require(script.Parent.RunSessionService)
 type RunState = RunSessionService.RunState
 
@@ -131,6 +134,59 @@ function RunShopService.buy(run: RunState, slotKey: string): { ok: boolean, reas
 
 	run.shopOffers[slotKey] = nil
 	return { ok = true }
+end
+
+function RunShopService.Init() end
+
+function RunShopService.Start()
+	local buyShopItem = Net.get("BuyShopItem")
+	local rerollShop = Net.get("RerollShop")
+	local runStateSync = Net.get("RunStateSync")
+
+	-- Minimalny debounce, jak w RunSessionService/PlayService.Start() -- patrz komentarz tam.
+	local lastCall: { [Player]: number } = {}
+	local function debounced(player: Player): boolean
+		local now = os.clock()
+		if now - (lastCall[player] or 0) < 0.1 then
+			return true
+		end
+		lastCall[player] = now
+		return false
+	end
+
+	local function pushState(player: Player, run: RunState)
+		runStateSync:FireClient(player, RunSessionService.snapshot(run))
+	end
+
+	buyShopItem.OnServerInvoke = function(player: Player, slotKey: string)
+		local run = RunSessionService.getRun(player)
+		if run == nil then
+			return { ok = false, reason = "no active run" }
+		end
+		if debounced(player) then
+			return { ok = false, reason = "rate limited" }
+		end
+		local result = RunShopService.buy(run, slotKey)
+		if result.ok then
+			pushState(player, run)
+		end
+		return result
+	end
+
+	rerollShop.OnServerInvoke = function(player: Player)
+		local run = RunSessionService.getRun(player)
+		if run == nil then
+			return { ok = false, reason = "no active run" }
+		end
+		if debounced(player) then
+			return { ok = false, reason = "rate limited" }
+		end
+		local result = RunShopService.reroll(run)
+		if result.ok then
+			pushState(player, run)
+		end
+		return result
+	end
 end
 
 return RunShopService

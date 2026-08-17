@@ -11,8 +11,13 @@ local HandEvaluator = require(Shared.HandEvaluator)
 local ScoreEngine = require(Shared.ScoreEngine)
 local TotemEngine = require(Shared.TotemEngine)
 
+local Framework = ReplicatedStorage:WaitForChild("Framework")
+local Net = require(Framework:WaitForChild("Net"))
+
 local RunSessionService = require(script.Parent.RunSessionService)
+local RunShopService = require(script.Parent.RunShopService)
 type RunState = RunSessionService.RunState
+type EncounterResult = { won: boolean, excessGold: number, baseGold: number, revived: boolean }?
 
 local PlayService = {}
 
@@ -183,6 +188,84 @@ function PlayService.endEncounterVoluntary(run: RunState): PlayOutcome
 	end
 	local result = RunSessionService.endEncounter(run, true)
 	return { ok = true, encounterResult = result }
+end
+
+-- Starcie zbite i run wciaz aktywny (wiecej starc przed nami) -> od razu otwiera sklep, zeby
+-- push RunStateSync ponizej zaniosl shopOffers w TYM SAMYM ramce co czysty hand/score (Architektura
+-- §5: sklep sie odbywa "miedzy starciami", a startEncounter juz zaawansowal stan wewnatrz
+-- endEncounter -- ten hook tylko wystawia oferty, nie rusza kolejnosci strumieni).
+local function maybeOpenShop(run: RunState, encounterResult: EncounterResult)
+	if encounterResult and encounterResult.won and run.status == "active" then
+		RunShopService.open(run)
+	end
+end
+
+function PlayService.Init() end
+
+function PlayService.Start()
+	local playRunes = Net.get("PlayRunes")
+	local swapRunes = Net.get("SwapRunes")
+	local endEncounterVoluntary = Net.get("EndEncounterVoluntary")
+	local runStateSync = Net.get("RunStateSync")
+
+	-- Minimalny debounce, jak w RunSessionService.Start() -- patrz komentarz tam.
+	local lastCall: { [Player]: number } = {}
+	local function debounced(player: Player): boolean
+		local now = os.clock()
+		if now - (lastCall[player] or 0) < 0.1 then
+			return true
+		end
+		lastCall[player] = now
+		return false
+	end
+
+	local function pushState(player: Player, run: RunState)
+		runStateSync:FireClient(player, RunSessionService.snapshot(run))
+	end
+
+	playRunes.OnServerInvoke = function(player: Player, indices: { number })
+		local run = RunSessionService.getRun(player)
+		if run == nil then
+			return { ok = false, reason = "no active run" }
+		end
+		if debounced(player) then
+			return { ok = false, reason = "rate limited" }
+		end
+		local outcome = PlayService.play(run, indices)
+		if outcome.ok then
+			maybeOpenShop(run, outcome.encounterResult)
+			pushState(player, run)
+		end
+		return outcome
+	end
+
+	swapRunes.OnServerInvoke = function(player: Player, indices: { number })
+		local run = RunSessionService.getRun(player)
+		if run == nil then
+			return { ok = false, reason = "no active run" }
+		end
+		if debounced(player) then
+			return { ok = false, reason = "rate limited" }
+		end
+		local outcome = PlayService.swap(run, indices)
+		if outcome.ok then
+			pushState(player, run)
+		end
+		return outcome
+	end
+
+	endEncounterVoluntary.OnServerInvoke = function(player: Player)
+		local run = RunSessionService.getRun(player)
+		if run == nil then
+			return { ok = false, reason = "no active run" }
+		end
+		local outcome = PlayService.endEncounterVoluntary(run)
+		if outcome.ok then
+			maybeOpenShop(run, outcome.encounterResult)
+			pushState(player, run)
+		end
+		return outcome
+	end
 end
 
 return PlayService

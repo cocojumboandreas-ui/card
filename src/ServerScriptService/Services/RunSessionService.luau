@@ -285,6 +285,42 @@ function RunSessionService.getRun(player: Player): RunState?
 	return _runs[player]
 end
 
+-- Client-safe snapshot RunState (Faza 2a krok 5): `streams` to domkniecia Random -- nieremotowalne
+-- -- wiec kontrolery NIGDY nie dostaja surowego RunState, tylko to. Net.luau's RunStateSync jest
+-- JEDYNYM zrodlem prawdy dla klienta (nie zwracana wartosc RF) -- patrz komentarz przy tym remote.
+function RunSessionService.snapshot(run: RunState): { [string]: any }
+	return {
+		seed = run.seed,
+		mode = run.mode,
+		level = run.level,
+		encounterIndex = run.encounterIndex,
+		status = run.status,
+
+		hand = run.hand,
+		handSize = run.handSize,
+
+		score = run.score,
+		threshold = run.threshold,
+		playsRemaining = run.playsRemaining,
+		swapsRemaining = run.swapsRemaining,
+
+		gold = run.gold,
+		totems = run.totems,
+		spellUpgrades = run.spellUpgrades,
+		scrolls = run.scrolls,
+
+		elementNullifiers = run.elementNullifiers,
+		activeGuardian = run.activeGuardian,
+		deadElement = run.deadElement,
+
+		shopOffers = run.shopOffers,
+		shopRerollCost = run.shopRerollCost,
+
+		drawPileCount = #run.drawPile,
+		discardPileCount = #run.discardPile,
+	}
+end
+
 function RunSessionService.Init() end
 
 function RunSessionService.Start()
@@ -295,6 +331,47 @@ function RunSessionService.Start()
 	-- Lekcja Bug 2B (patrz ProfileService): sprzątanie na ProfileReleasing, NIE na osobnym
 	-- Players.PlayerRemoving — inaczej wyścig z EndSession przy zamykaniu profilu.
 	_profileService.ProfileReleasing:Connect(function(player: Player)
+		_runs[player] = nil
+	end)
+
+	local Net = require(Framework:WaitForChild("Net"))
+	local startRun = Net.get("StartRun")
+	local abandonRun = Net.get("AbandonRun")
+	local runStateSync = Net.get("RunStateSync")
+
+	-- Minimalny debounce (AntiCheatService centralny rate-limit to Faza 3+, patrz Architektura §2 --
+	-- ta linia jest ścieżką do niego, nie docelowym mechanizmem).
+	local lastStartRun: { [Player]: number } = {}
+
+	startRun.OnServerInvoke = function(player: Player, _mode: string?)
+		local now = os.clock()
+		if now - (lastStartRun[player] or 0) < 1 then
+			return { ok = false, reason = "rate limited" }
+		end
+		lastStartRun[player] = now
+
+		-- Faza 2a: mode="free" jedyny obslugiwany (zasada 12 -- ranked to gotowy hook w ScoreEngine/
+		-- RunState, nie feature; wartosc od klienta jest IGNOROWANA az RollService/kolekcja beda
+		-- gotowe, Faza 2b+ -- patrz komentarz przy `mode` w typie RunState powyzej).
+		local seed = Random.new():NextInteger(1, 2147483646)
+		local run = RunSessionService.startRunForPlayer(player, seed, "free")
+		local state = RunSessionService.snapshot(run)
+		-- redundant z RF-returnem, ale trzyma się inwariantu "klient renderuje WYŁĄCZNIE z
+		-- RunStateSync" bez wyjątku dla pierwszej ramki -- jeden tor renderowania, nie dwa.
+		runStateSync:FireClient(player, state)
+		return { ok = true, state = state }
+	end
+
+	abandonRun.OnServerEvent:Connect(function(player: Player)
+		local run = _runs[player]
+		if run == nil or run.status ~= "active" then
+			return
+		end
+		-- cash-out: zlota->essence WYLACZNIE tutaj (poza normalnym torem won/lost w endEncounter).
+		RunSessionService._awardRunEssence(run)
+		run.status = "abandoned"
+		logLine(run, "RUN ABANDONED (voluntary cash-out).")
+		runStateSync:FireClient(player, RunSessionService.snapshot(run))
 		_runs[player] = nil
 	end)
 end

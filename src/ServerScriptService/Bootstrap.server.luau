@@ -11,9 +11,8 @@ local ServiceRegistry = require(Framework:WaitForChild("ServiceRegistry"))
 local Services = ServerScriptService:WaitForChild("Services")
 
 -- ProfileService -> StatProfileService -> EconomyService -> RunSessionService -> PlayService ->
--- RunShopService (Faza 2a). PlayService/RunShopService nie mają Init/Start (czyste orkiestratory
--- nad RunState) — rejestrowane dla spójności/discoverability przez ServiceRegistry.get(), no-opy
--- w initAll/startAll.
+-- RunShopService (Faza 2a). Wszystkie sześć mają teraz Init/Start (krok 5: PlayService/
+-- RunShopService.Start() wiążą swoje remote'y z Net.luau -- patrz te pliki).
 local ORDER = {
 	"ProfileService",
 	"StatProfileService",
