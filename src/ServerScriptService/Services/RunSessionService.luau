@@ -372,19 +372,20 @@ function RunSessionService.Start()
 	-- ta linia jest ścieżką do niego, nie docelowym mechanizmem).
 	local lastStartRun: { [Player]: number } = {}
 
-	startRun.OnServerInvoke = function(player: Player, _mode: string?)
+	startRun.OnServerInvoke = function(player: Player, requestedMode: string?)
 		local now = os.clock()
 		if now - (lastStartRun[player] or 0) < 1 then
 			return { ok = false, reason = "rate limited" }
 		end
 		lastStartRun[player] = now
 
-		-- Faza 2a: mode="free" jedyny obslugiwany (zasada 12 -- ranked to gotowy hook w ScoreEngine/
-		-- RunState, nie feature; wartosc od klienta jest IGNOROWANA az RollService/kolekcja beda
-		-- gotowe, Faza 2b+ -- patrz komentarz przy `mode` w typie RunState powyzej). Seed: SeedService
-		-- (Faza 3 krok #3) zamiast inline Random.new() -- zachowanie identyczne, jedno zrodlo prawdy.
-		local seed = _seed.RandomSeed()
-		local run = RunSessionService.startRunForPlayer(player, seed, "free")
+		-- Faza 3 krok #4 (zasada 12): mode="ranked" wymaga Seed Dnia (SeedService.DailySeed) --
+		-- WSPÓLNY dla wszystkich graczy w tej samej dobie UTC, nigdy losowy per gracz, inaczej
+		-- ranked traci sens. Każda inna/brakująca wartość od klienta -> "free" (zero zaufania do
+		-- wejścia klienta, whitelist nie blacklist).
+		local mode = (requestedMode == "ranked") and "ranked" or "free"
+		local seed = (mode == "ranked") and _seed.DailySeed() or _seed.RandomSeed()
+		local run = RunSessionService.startRunForPlayer(player, seed, mode)
 		local state = RunSessionService.snapshot(run)
 		-- redundant z RF-returnem, ale trzyma się inwariantu "klient renderuje WYŁĄCZNIE z
 		-- RunStateSync" bez wyjątku dla pierwszej ramki -- jeden tor renderowania, nie dwa.

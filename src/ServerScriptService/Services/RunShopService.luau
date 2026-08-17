@@ -13,6 +13,7 @@ local TotemConfig = require(Shared.Configs.TotemConfig)
 local SpellConfig = require(Shared.Configs.SpellConfig)
 local ShopConfig = require(Shared.Configs.ShopConfig)
 local GameConfig = require(Shared.Configs.GameConfig)
+local RankedConfig = require(Shared.Configs.RankedConfig)
 
 local Framework = ReplicatedStorage:WaitForChild("Framework")
 local Net = require(Framework:WaitForChild("Net"))
@@ -39,7 +40,30 @@ local STARTER_TIER = "Common"
 -- filtr niezmieniony). W STABILNEJ (alfabetycznej po id) kolejności — TotemConfig.Totems jest
 -- dict-em; pairs() nie gwarantuje kolejności między procesami, więc sortujemy jawnie, żeby ten sam
 -- seed zawsze dawał tę samą ofertę niezależnie od hash-seed danego uruchomienia Luau.
+-- Faza 3 krok #4 (zasada 12): ranked NIGDY nie czyta kolekcji gracza (IndexService.IsDiscovered
+-- w ogóle nie jest wywoływane w tej gałęzi) -- pula to wyłącznie RankedConfig.TotemIds, stały
+-- porządek, bez sortowania (już deterministyczny z definicji listy). To jest fundament bramki
+-- determinizmu: rich-collection i empty-collection gracz na tym samym Seed Dnia MUSZĄ dostać
+-- identyczną ofertę sklepu.
+local function rankedTotemPool(run: RunState): { any }
+	local excluded = {}
+	for _, t in run.totems do
+		excluded[t.id] = true
+	end
+	local pool = {}
+	for _, id in RankedConfig.TotemIds do
+		if not excluded[id] then
+			table.insert(pool, TotemConfig.Totems[id])
+		end
+	end
+	return pool
+end
+
 local function availableTotemPool(run: RunState): { any }
+	if run.mode == "ranked" then
+		return rankedTotemPool(run)
+	end
+
 	local excluded = {}
 	for _, t in run.totems do
 		excluded[t.id] = true

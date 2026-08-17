@@ -229,17 +229,58 @@ Zweryfikowane live w solo playteście przez `eval_server_runtime`:
 - `RunSessionService.startRun(SeedService.RandomSeed(), "free")` dziala bez bledow po wpiecu
   SeedService — PASS
 
-**Nastepny krok: krok #4 — tryb ranked.** RankedConfig (neutralna pula Totemow, propozycja skladu
-do potwierdzenia z Andreasem — dopracowanie #3, jeszcze nie zlozona), odpiecie `mode` w
-`startRun.OnServerInvoke` od twardego `"free"`, przeplyw `ranked` do `ScoreEngine` (pole `ranked`
-juz istnieje). PRZED przejsciem do LeaderboardService: **twardy test determinizmu ranked**
-(dopracowanie #2 Andreasa) — dwaj gracze, bogata vs pusta kolekcja, ten sam Seed Dnia, te same
-decyzje -> wynik MUSI byc identyczny; wynik pokazany Andreasowi jako bramka przed dalsza praca.
+### Krok #4 — tryb ranked — ZROBIONE, bramka determinizmu ZDANA (2026-08-17)
+
+**RankedConfig** (`Shared/Configs/RankedConfig.luau`, nowy plik) — sklad potwierdzony przez
+Andreasa (Wariant A): `{ emberpup, frostfawn, blobby, coinpurr, kingosaur }`. Pokrywa 3 rodziny
+totemow (flat/multiplikatywny/skalujacy), tiery Common->Legendary, zero totemow zaleznych od
+konkretnego spellId. Stala kolejnosc listy (nie `pairs()` po dict-cie) — deterministyczna z
+definicji.
+
+Odkrycie przy analizie: `ScoreEngine`'s `collectionScoped`-filtr (zasada 12) jest juz gotowy, ale
+JEST no-opem — zaden z 15 totemow nie ma `collectionScoped=true`. Prawdziwy wyciek neutralnosci
+siedzial gdzie indziej: `RunShopService.availableTotemPool` = starter Common UNION **posiadane
+przez gracza** (`IndexService.IsDiscovered`) — to zalezy od kolekcji. Fix: nowa galaz
+`rankedTotemPool` (uzywana gdy `run.mode=="ranked"`) czyta WYLACZNIE `RankedConfig.TotemIds`,
+`IndexService.IsDiscovered` nie jest w tej galazi w ogole wywolywane.
+
+Drugie sprawdzone zrodlo mozliwego wycieku: `StatProfileService`'s `extraPlays`/`extraSwaps`
+(czytane w `RunSessionService.startRunForPlayer`) — zweryfikowane, ze to czyste bazy z
+`GameConfig.StatBase` + delty skilli, a `profile.skills` jest zawsze `{}` w tej fazie (brak
+SkillTreeService) -> identyczne dla kazdego gracza niezaleznie od kolekcji, zaden fix niepotrzebny
+teraz (ale to bedzie trzeba przypilnowac przy Fazie 2b/SkillTreeService).
+
+`RunSessionService.startRun.OnServerInvoke`: `mode="ranked"` akceptowany od klienta (whitelist,
+kazda inna wartosc -> `"free"`), seed = `SeedService.DailySeed()` dla ranked / `RandomSeed()` dla
+free.
+
+**Bramka determinizmu (dopracowanie #2 Andreasa) — ZDANA, PASS:**
+
+Test (`eval_server_runtime`, solo playtest): dwa symulowane runy ranked na TYM SAMYM Seed Dnia
+(`SeedService.DailySeed(fixedNow)`), z `IndexService.IsDiscovered` podmienionym tak, by jeden run
+"widzial" gracza z bogata kolekcja (zwraca `true` dla kazdego totemu) a drugi z pusta (`false` dla
+kazdego) — plus licznik wywolan tej funkcji. Na obu identyczna, zdeterminowana sekwencja decyzji
+(otworz sklep -> kup totem jesli w ofercie, zagraj cala reke, zakoncz starcie) powtorzona przez 12
+starc lub do konca runu.
+
+| Sprawdzenie | Wynik |
+|---|---|
+| Trace decyzji (26 krokow: shop/play/enc na starcie) | **identyczny** bit-do-bitu, rich vs empty |
+| Totemy kupione w runie | **identyczne** (`kingosaur` w obu) |
+| Koncowe zloto / status runu | **identyczne** (10226g / `"lost"` w obu) |
+| Wywolania `IndexService.IsDiscovered` podczas OBU rankedowych runow | **0** (oczekiwane 0) |
+
+Ostatni wiersz jest dowodem strukturalnym, nie tylko empirycznym: kod ranked-owej sciezki
+(`rankedTotemPool`) fizycznie nie odwoluje sie do funkcji czytajacej kolekcje gracza, wiec zaden
+przyszly stan kolekcji (bogaty czy pusty) nie moze przeciekac do wyniku rankedowego runu.
+
+**Bramka zamknieta. Nastepny krok: LeaderboardService** (mediana-z-3 anty-cheat — zelazna zasada
+architektury, NIE do ciecia).
 
 ## Stan git
 
-- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu sygnalow `091d5bf`.
-- Biezacy batch SeedService (`SeedUtil.luau`, nowy `SeedService.luau`, `Bootstrap.server.luau`,
+- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu `e6e8960` (SeedService).
+- Biezacy batch trybu ranked (`RankedConfig.luau` nowy, `RunShopService.luau`,
   `RunSessionService.luau`, ten plik) zmieniony lokalnie + wypchniety do zywego Studio,
   **jeszcze niescommitowany** — kolejny krok w tej sesji.
 - `git status` czysty poza tym batchem. `cardsw/` w `.gitignore`, nie pojawia sie juz jako
