@@ -31,7 +31,7 @@ local PROFILE_TEMPLATE = {
 	pity = { sinceEpic = 0 },
 	bestScores = { daily = {}, allTime = 0 }, -- daily: [dateKey] = score (walidacja anti-resubmit)
 	quests = { dateKey = "", list = {} },
-	streak = { count = 0, lastDateKey = "" },
+	streak = { count = 0, lastDateKey = "", claimed = {} }, -- claimed: [days]=true, D7/D14/D30 (StreakConfig)
 	offlineTs = 0,
 	ftueDone = false,
 	purchases = { receipts = {} }, -- idempotencja ProcessReceipt

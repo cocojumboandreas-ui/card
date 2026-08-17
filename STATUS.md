@@ -323,11 +323,35 @@ Weryfikacja live (solo playtest + `eval_server_runtime`/`eval_client_runtime`):
 | `GetLeaderboard("daily")`/`("allTime")` po pelnym cyklu 60s (real-time, nie symulowane) | `list` z wpisem gracza, `score` zgodny z mediana/allTime powyzej — **pelny round-trip OrderedDataStore potwierdzony** |
 | `get_runtime_logs filter="LeaderboardService"` | tylko `Init`/`Start`, zero `warn` (brak bledow `SetAsync`/`GetSortedAsync`) |
 
+### Krok #6 — StreakService — ZROBIONE, zweryfikowane live (2026-08-17)
+
+Nowe pliki: `StreakConfig.luau` (Shared/Configs, kamienie D7/100 esencji, D14/250, D30/600 —
+PLACEHOLDER jak reszta configów). `StreakService.luau` (ServerScriptService/Services). 2 nowe
+remoty: `ClaimStreak` (RF, C->S days:number), `GetStreakState` (RF, C->S ()). `profile.streak`
+rozszerzony o `claimed` (mapa days->true, wzorzec `IndexService.indexClaims`). Wpiety w
+Bootstrap ORDER po `LeaderboardService`.
+
+Mechanika: `ProfileService.ProfileLoaded` -> `StreakService.TouchLogin` liczy nowy `count` z
+3 stanów porównania dateKey (dzisiaj/wczoraj/serwerowy `os.time()`, NIGDY zegar klienta) —
+ten sam dzień = no-op, dokładnie wczoraj = +1, cokolwiek innego (pierwszy login, luka >1 dzień,
+hipotetyczny skok zegara wstecz) = reset do 1. Kamienie D7/D14/D30 wymagają JAWNEGO
+`ClaimStreak` (osiągnięcie progu != odbiór, ten sam wzorzec co `ClaimIndexLuck`) —
+`NotReached`/`UnknownMilestone`/`AlreadyClaimed` jako reason, `AwardEssence` tylko przy sukcesie.
+
+Weryfikacja live: `_ComputeNextCountForTest` — sameDay(5,"20260817","20260817","20260816")=5,
+continued(5,"20260816",...)=6, gap(5,"20260810",...)=1, firstEver(0,"",...)=1 — **wszystkie 4
+poprawne**. Pełny claim flow przez `eval_client_runtime`+`InvokeServer`: count wymuszony na 10 ->
+`ClaimStreak(14)`=NotReached, `ClaimStreak(99)`=UnknownMilestone, `ClaimStreak(7)`=ok+`essence:100`,
+`ClaimStreak(7)` ponownie=AlreadyClaimed, `GetStreakState` po obu wywołaniach pokazuje poprawny
+`reached`/`claimed` per próg — **wszystko zgodne**. `get_runtime_logs filter="StreakService"`:
+tylko `Init`/`Start`, zero `warn`.
+
 ## Stan git
 
-- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu `384903b` (tryb ranked).
-- Biezacy batch LeaderboardService (`LeaderboardConfig.luau` nowy, `LeaderboardService.luau`
-  nowy, `Net.luau`, `Bootstrap.server.luau`, ten plik) zmieniony lokalnie + wypchniety do
+- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu `c2f1507`
+  (LeaderboardService).
+- Biezacy batch StreakService (`StreakConfig.luau` nowy, `StreakService.luau` nowy, `Net.luau`,
+  `Bootstrap.server.luau`, `ProfileService.luau`, ten plik) zmieniony lokalnie + wypchniety do
   zywego Studio, **jeszcze niescommitowany** — kolejny krok w tej sesji.
 - `git status` czysty poza tym batchem. `cardsw/` w `.gitignore`, nie pojawia sie juz jako
   untracked.
