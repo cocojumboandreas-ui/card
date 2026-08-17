@@ -145,4 +145,21 @@ function UIFactory.column(parent: Instance, props: { [string]: any }?): Frame
 	return frame
 end
 
+-- Cienka warstwa artu KARTY NAD kolorowym blokiem tieru (nie zamiast) -- jeśli assetId nil/pusty
+-- (brak w CardArtConfig, np. moderacja w toku), po prostu nic się nie tworzy i kolorowy blok
+-- zostaje jedynym, co gracz widzi -- naturalny fallback bez wykrywania błędu ładowania obrazu.
+function UIFactory.artImage(parent: Instance, assetId: string?, props: { [string]: any }?): ImageLabel?
+	if not assetId or assetId == "" then
+		return nil
+	end
+	local img = Instance.new("ImageLabel")
+	img.Size = UDim2.fromScale(1, 1)
+	img.BackgroundTransparency = 1
+	img.Image = assetId
+	img.ScaleType = Enum.ScaleType.Fit
+	applyProps(img, props)
+	img.Parent = parent
+	return img
+end
+
 return UIFactory

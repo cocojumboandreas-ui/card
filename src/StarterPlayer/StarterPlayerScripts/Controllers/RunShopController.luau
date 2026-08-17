@@ -6,9 +6,12 @@
 -- nie ekranem pauzy. "Nowa wizyta" wykrywana przez zmianę encounterIndex (1:1 z każdym open()),
 -- żeby modal auto-otwierał się raz na wizytę, ale gracz mógł go odłożyć bez blokowania ręki.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local UIFactory = require(script.Parent.UIFactory)
 local UIRootController = require(script.Parent.UIRootController)
 local NetController = require(script.Parent.NetController)
+local CardArtConfig = require(ReplicatedStorage.Shared.Configs.CardArtConfig)
 
 local RunShopController = {}
 
@@ -51,12 +54,26 @@ local function buildOfferCard(state: { [string]: any }, slotKey: string)
 		Size = UDim2.new(0, 140, 0, 160),
 		BackgroundColor3 = color,
 	})
-	UIFactory.label(card, title, {
+
+	local art = offer
+		and slotKey == "totem"
+		and UIFactory.artImage(card, CardArtConfig.get(offer.totemId), {
+			Size = UDim2.new(1, -8, 0, 90),
+			Position = UDim2.new(0, 4, 0, 6),
+		})
+
+	local titleLabel = UIFactory.label(card, title, {
 		Size = UDim2.new(1, -8, 0, 90),
 		Position = UDim2.new(0, 4, 0, 6),
 		TextSize = 16,
 		TextWrapped = true,
 	})
+	if art then
+		-- art nad kolorowym blokiem, podpis nad artem -- czarny stroke zamiast dodatkowej
+		-- ramki/tła, żeby nazwa czytała się na dowolnym kolorze artu.
+		titleLabel.TextStrokeTransparency = 0
+		titleLabel.ZIndex = 2
+	end
 
 	if offer then
 		UIFactory.button(card, `BUY {price}g`, {

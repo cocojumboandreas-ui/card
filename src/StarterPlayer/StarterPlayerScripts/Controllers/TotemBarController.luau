@@ -4,9 +4,12 @@
 -- Pusty pasek w 2a przy starcie runu (meta pick "1 z 3" odłożony, patrz RunSessionService) --
 -- pasek zapełnia się wyłącznie zakupami w RunShopController.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local UIFactory = require(script.Parent.UIFactory)
 local UIRootController = require(script.Parent.UIRootController)
 local NetController = require(script.Parent.NetController)
+local CardArtConfig = require(ReplicatedStorage.Shared.Configs.CardArtConfig)
 
 local TotemBarController = {}
 
@@ -46,6 +49,12 @@ local function render(state: { [string]: any }?)
 			_infoLabel.Text = `{totem.name} ({totem.tier}) — {effectSummary(totem)}`
 		end)
 		slot.TextWrapped = true
+
+		if UIFactory.artImage(slot, CardArtConfig.get(totem.id)) then
+			-- art niesie tożsamość Stworka -- nazwa i tak dostępna po tapie (_infoLabel);
+			-- pełny podpis w 60px zasłoniłby ~88% artu.
+			slot.Text = ""
+		end
 	end
 end
 
