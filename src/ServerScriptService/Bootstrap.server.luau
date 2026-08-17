@@ -20,6 +20,7 @@ local ORDER = {
 	"ProfileService",
 	"StatProfileService",
 	"EconomyService",
+	"OfflineEarnService", -- Faza 3: zależy tylko od Profile/Stat/Economy, zero zależności od runu
 	"IndexService",
 	"RollService",
 	"RunSessionService",

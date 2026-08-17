@@ -30,6 +30,9 @@ local REMOTES: { [string]: string } = {
 	RollTotem = "RemoteFunction", -- C->S () -> RollResult{ok, totemId?, tier?, variant?, isNewDiscovery?, pityTriggered?, essence?, reason?}
 	ClaimIndexLuck = "RemoteFunction", -- C->S (pct:number) -> {ok, luckBonus?, reason?}
 	GetIndexState = "RemoteFunction", -- C->S () -> IndexState{entries, overall, luckBonus, thresholds}
+
+	-- Faza 3: retencja
+	OfflineEarnings = "RemoteEvent", -- S->C {essence:number, seconds:number} — jednorazowy popup po ProfileLoaded, tylko gdy essence>0
 }
 
 local Net = {}

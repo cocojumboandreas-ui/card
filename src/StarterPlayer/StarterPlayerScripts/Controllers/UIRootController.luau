@@ -17,6 +17,7 @@ local ROOTS = {
 	{ name = "Shop", order = 30 },
 	{ name = "ScoreFx", order = 40 },
 	{ name = "Index", order = 45 }, -- Faza 2b: panel kolekcji, nad ScoreFx
+	{ name = "Toast", order = 50 }, -- Faza 3: krótkie popupy (offline earn, streak, questy...), zawsze na wierzchu
 }
 
 local _guis: { [string]: ScreenGui } = {}

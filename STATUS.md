@@ -135,12 +135,53 @@ zero rolli" bez zadnej modyfikacji harnessu:
 
 Komentarz z wynikiem zapisany tez w `RunShopService.luau` przy `availableTotemPool`.
 
-## Otwarte zadania (kolejnosc do zrobienia)
+## Faza 3 (retencja) — PLAN zatwierdzony 2026-08-17
 
-1. *(NIE planowac jeszcze — czeka na potwierdzenie Andreasa czy D1 jest w pelni zamkniete, patrz
-   sekcja wyzej)* Faza 3.
+Architektura: 7 modulow (SeedService, ranked mode, LeaderboardService, StreakService, QuestService,
+AnnouncementService, OfflineEarnService). Kolejnosc budowy (dependency-driven, NIE lista 1-7 z
+briefu Andreasa): **OfflineEarnService -> sygnaly (RunEnded/SpellPlayed/GuardianDefeated/
+TotemRolled) -> SeedService -> ranked mode -> LeaderboardService -> StreakService -> QuestService ->
+AnnouncementService**. Pierwsze grywalne = OfflineEarnService (samodzielny, zero zaleznosci od
+reszty). Cut-lista: tygodniowy leaderboard i pula questow moga poczekac; mediana-z-3 anty-cheat w
+LeaderboardService NIE do ciecia (zelazna zasada architektury).
+
+Odkrycie przy planowaniu: sygnaly `RunEnded`/`SpellPlayed`/`GuardianDefeated`/`TotemRolled` sa
+udokumentowane w `RUNE_RNG_ARCHITEKTURA.md` §2 (linia 78) ale NIE zaimplementowane w kodzie
+(zweryfikowane grepem) — to jest prawdziwy krok #2 w kolejnosci, nie "juz gotowe z Fazy 1" jak
+zakladal brief. `RollService.Rolled` i ranked-mode hook (`RunState.mode` + `ScoreEngine`
+`collectionScoped` filtr z zasady 12) SA juz zaimplementowane i dzialajace (potwierdzone grepem),
+tylko nie podlaczone do zadnego uzytku.
+
+### OfflineEarnService — ZROBIONE, zweryfikowane live (2026-08-17)
+
+Port wzorca z `D:/RobloxProjects/rng/EconomyService.computeOfflineRaw` (3 guardy: first-login,
+clock-skew, cap `OfflineConfig.CapHours=10`). Nowe pliki: `Shared/Configs/OfflineConfig.luau`,
+`ServerScriptService/Services/OfflineEarnService.luau`,
+`StarterPlayerScripts/Controllers/OfflineEarnController.luau` (toast w nowym root "Toast",
+`UIRootController` order=50) + remote `OfflineEarnings` w `Net.luau`. Zarejestrowany w Bootstrap
+(server) po `EconomyService`, w init.client po `IndexController`.
+
+Guard przeciw podwojnemu naliczeniu (race ProfileReleasing / szybki re-login): baseline `offlineTs`
+jest zawsze swiezy z DWOCH miejsc — `ProfileService.onPlayerRemoving` stempluje `os.time()` PRZED
+`EndSession` (juz istnialo, nic nie trzeba bylo dokladac), plus `ComputeOfflineEarnings` sam resetuje
+`offlineTs=now` natychmiast po policzeniu, przed `AwardEssence`.
+
+Zweryfikowane live w solo playteście przez `eval_server_runtime` (`_ComputeOfflineRawForTest` +
+prawdziwy `ComputeOfflineEarnings` na zywym profilu):
+- first-login (offlineTs=0): raw=0 — PASS
+- clock-skew (offlineTs w przyszlosci): raw=0 — PASS
+- normalny przypadek (1h offline): raw=20 (=`EssencePerHour`) — PASS
+- cap (20h offline): sekundy przyciete do 36000 (10h), raw=200 — PASS
+- pelna zywa sciezka (2h wymuszone na prawdziwym profilu): +40 essence przyznane
+  (157643->157683), `offlineTs` zresetowany — PASS
+
+Toast po stronie klienta NIE zweryfikowany wizualnie (auto-dismiss 6s zdazyl zniknac przed
+zrzutem ekranu) — kod uzywa tych samych `UIFactory.panel/label/button`, ktore juz dzialaja w
+`IndexController`, wiec ryzyko wizualne niskie, ale nie 100% potwierdzone.
+
+**Nastepny krok: krok 0/#2 — sygnaly (RunEnded/SpellPlayed/GuardianDefeated/TotemRolled).**
 
 ## Stan git
 
-- Branch `main`, w pelni zsynchronizowany z `origin/main` (push potwierdzony, `2949a33..6ec39f9`).
+- Branch `main`, w pelni zsynchronizowany z `origin/main` (push potwierdzony, `2949a33..032cfec`).
 - `git status` czysty. `cardsw/` w `.gitignore`, nie pojawia sie juz jako untracked.

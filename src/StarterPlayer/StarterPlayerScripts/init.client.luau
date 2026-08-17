@@ -15,6 +15,7 @@ local ORDER = {
 	"UIRootController",
 	"RollRevealController", -- Faza 2b: przed HudController (przycisk Roll go woła), po UIRootController (root "Roll")
 	"IndexController", -- Faza 2b: przed HudController (przycisk Indeks go woła), po UIRootController (root "Index")
+	"OfflineEarnController", -- Faza 3: po UIRootController (root "Toast"), niezależny od HUD-u
 	"HudController",
 	"RunFlowController",
 	"HandController",
