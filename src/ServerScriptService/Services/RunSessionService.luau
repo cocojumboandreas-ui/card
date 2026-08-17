@@ -289,14 +289,15 @@ function RunSessionService._awardRunEssence(run: RunState)
 	logLine(run, `essence awarded to owner: {gained} (from {run.gold}g × {EssenceConfig.RunGoldToEssenceRate})`)
 end
 
--- StartRun dla realnego gracza: jak startRun(), plus czyta StatProfileService.Get(player) dla
--- startowych bonusów (extraPlays/extraSwaps — startPickSize/luck czekają na RollService, Faza 2b)
--- i rejestruje run pod graczem w _runs.
+-- StartRun dla realnego gracza: jak startRun(), plus czyta StatProfileService.Get(player, run.mode)
+-- dla startowych bonusów (extraPlays/extraSwaps; startPickSize czytany przez RunShopService przy
+-- generowaniu start-picku, Faza 4 Krok 0) i rejestruje run pod graczem w _runs. mode przekazane do
+-- Get() (Faza 4 Ustalenie #2): ranked dostaje neutralne wartości niezależnie od gamepassów/skilli.
 function RunSessionService.startRunForPlayer(player: Player, seed: number, mode: string?): RunState
 	local run = RunSessionService.startRun(seed, mode)
 	run.owner = player
 
-	local stats = _statProfile and _statProfile.Get(player)
+	local stats = _statProfile and _statProfile.Get(player, run.mode)
 	if stats then
 		run.playsRemaining += (stats.extraPlays or 0)
 		run.swapsRemaining += (stats.extraSwaps or 0)

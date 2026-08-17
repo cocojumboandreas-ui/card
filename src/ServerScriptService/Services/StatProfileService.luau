@@ -78,10 +78,27 @@ function StatProfileService.Recompute(player: Player)
 	return stats
 end
 
-function StatProfileService.Get(player: Player)
+-- Faza 4 (Ustalenie #2, brief "p2w nie przecieka do ranked"): pola które bezpośrednio zmieniają
+-- mechanikę runu (ile razy gracz może zagrać/swapnąć/ile totemów wybrać na start) — zamknięta
+-- lista, zweryfikowana grepem wszystkich call site'ów każdego STAT_FIELDS. luck/essenceMult/
+-- offlineRate/fastRoll NIE są tu, bo dowodliwie nie dotykają rankScore ani mechaniki runu (patrz
+-- plan Fazy 4) — nie karzemy p2w graczy na polach, które nie psują uczciwości Seed Dnia.
+local RANKED_NEUTRAL_FIELDS = { "extraPlays", "extraSwaps", "startPickSize" }
+
+-- mode=="ranked": zwraca staty z RANKED_NEUTRAL_FIELDS przywróconymi do GameConfig.StatBase,
+-- niezależnie od skilli/indeksu/gamepassów w cache'u — Seed Dnia startuje z identycznymi
+-- warunkami runu dla każdego gracza. Jedyny call site z mode: RunSessionService.startRunForPlayer.
+function StatProfileService.Get(player: Player, mode: string?)
 	local cached = _cache[player]
 	if cached == nil then
 		cached = StatProfileService.Recompute(player)
+	end
+	if mode == "ranked" then
+		local neutral = table.clone(cached)
+		for _, field in RANKED_NEUTRAL_FIELDS do
+			neutral[field] = GameConfig.StatBase[field]
+		end
+		return neutral
 	end
 	return cached
 end
@@ -118,6 +135,12 @@ function StatProfileService._InjectForTest(deps)
 	if deps.profileService ~= nil then
 		_profileService = deps.profileService
 	end
+end
+-- Hook TYLKO do testow: wstrzyknij gotowe staty wprost do cache'a gracza, z pominieciem
+-- Recompute/compute -- pozwala symulowac bonus z gamepassa/skilla (ktorych jeszcze nie ma w
+-- kodzie, Faza 4 Krok 2/3) i sprawdzic mode-aware neutralizacje w Get() bez czekania na nie.
+function StatProfileService._InjectStatsForTest(player: Player, stats)
+	_cache[player] = stats
 end
 
 return StatProfileService
