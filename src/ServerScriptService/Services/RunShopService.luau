@@ -28,9 +28,10 @@ local function logLine(run: RunState, msg: string)
 end
 
 -- Stały starter (task #1, otwarte zadania STATUS.md): wszystkie tiery Common z TotemConfig — świeży
--- gracz bez ani jednego rolla wciąż ma co kupić w pierwszym runie. Dziś to dokładnie 5 totemów
--- (capybop/lotti/emberpup/voltmouse/shadowkit); jeśli MVP-15 kiedyś urośnie, ten filtr nadal
--- łapie każdy nowy Common bez ręcznej listy.
+-- gracz bez ani jednego rolla wciąż ma co kupić w pierwszym runie. Filtr jest dynamiczny (nie
+-- twarda lista id), więc zawsze łapie aktualny zestaw Common z TotemConfig bez ręcznej synchronizacji
+-- (dziś 7: capybop/lotti/emberpup/voltmouse/shadowkit/quackers/blobby — zweryfikowane D1 harnessem
+-- 2026-08-17, patrz STATUS.md).
 local STARTER_TIER = "Common"
 
 -- Pula totemów dostępnych w sklepie = (posiadane przez gracza, profile.totems ∩ TotemConfig, przez
@@ -60,8 +61,10 @@ local function availableTotemPool(run: RunState): { any }
 	return pool
 end
 
--- TODO (task #2, otwarte zadania STATUS.md): po Fazie 2b przepuścić harness z pulą=starter
--- (świeży profil, zero rolli) i sprawdzić że completion rate nie spada poniżej 20%.
+-- Bramka D1 (2026-08-17, tests/BalanceHarness.studio.luau, n=50, pool=starter przez owner=nil):
+-- FULL-SMART completion 30% (>=20%, PASS). NAIVE (zero-decyzji floor) 2% — oczekiwane, ten bot
+-- nigdy nie swapuje/nie kupuje mądrze, to zawsze był floor a nie realistyczny fresh-player proxy.
+-- Szczegoly w STATUS.md.
 
 local function rollTotemOffer(run: RunState): { [string]: any }?
 	local pool = availableTotemPool(run)

@@ -89,9 +89,10 @@ review) via `eval_client_runtime` (klik-symulacja `simulate_mouse_input` nie dzi
 srodowisku — nieklikalne przyciski na starym I nowym UI identycznie, srodowiskowy problem, nie
 bug kodu; ominiete bezposrednim wywolaniem funkcji za przyciskami):
 
-- **RunShopService** — pula totemow w sklepie w runie = starter Common (5) UNION posiadane przez
-  gracza (`IndexService.IsDiscovered`), minus juz-w-tym-runie. Swiezy gracz bez zadnego rolla ma
-  co kupic. Zweryfikowane tylko code-review (brak dedykowanego UI do klikniecia).
+- **RunShopService** — pula totemow w sklepie w runie = starter Common (dynamiczny filtr tieru,
+  dzis 7 totemow) UNION posiadane przez gracza (`IndexService.IsDiscovered`), minus
+  juz-w-tym-runie. Swiezy gracz bez zadnego rolla ma co kupic. Zweryfikowane code-review + potem
+  bramka D1 harnessem (patrz nizej) — brak dedykowanego UI do klikniecia w playtescie.
 - **RollRevealController** — pacing tier->duration portowany z WAR RNG `RevealConfig` (Common
   szybko, Epic/Legendary dluzej suspensyjnie), styl kart WLASNY (`UIFactory` + `CardArtConfig`),
   wariant = zwykly `TextLabel`, zero animacji/czasteczek. Zweryfikowane live: Common
@@ -110,15 +111,32 @@ Efekt uboczny live-testow: essence na koncie testowym "Onimushaa5" spadlo 1577->
 ProfileStore, nie sandbox — testy przez `eval_client_runtime` uzywaja prawdziwego profilu
 gracza).
 
+## Bramka D1 — pula=starter (2026-08-17) — ZDANA (full-smart), NAIVE do decyzji
+
+Uruchomione `tests/BalanceHarness.studio.luau` live w server VM (`eval_server_runtime`, solo
+playtest), n=50 seedow, `RunSessionService.startRun` (nie `startRunForPlayer`) daje `owner=nil`
+=> `availableTotemPool` zwraca WYLACZNIE starter (7 Common) — dokladnie scenariusz "swiezy gracz,
+zero rolli" bez zadnej modyfikacji harnessu:
+
+| Bot | Completion | Loss histogram (enc) |
+|---|---|---|
+| FULL-SMART (proxy realnego gracza: najlepszy hand co ture, swapy, zuzywa zwoje) | **30% (15/50)** | 8:1 9:1 10:22 11:4 12:7 |
+| NAIVE (floor: zero decyzji, nigdy nie swapuje/nie kupuje strategicznie) | **2% (1/50)** | 6:1 7:5 8:16 9:7 10:19 11:1 |
+
+**Wynik wzgledem progu >=20%:** FULL-SMART przechodzi z zapasem (30%). NAIVE jest drastycznie
+ponizej (2%) — ale NAIVE z definicji tego harnessu ZAWSZE byl floorem/gorszym-przypadkiem, nie
+realistycznym proxy swiezego gracza (patrz naglowek `BalanceHarness.studio.luau`), wiec nie jest
+jasne czy to sam z siebie narusza intencje bramki D1 czy jest oczekiwane. Do potwierdzenia z
+Andreasem: czy FULL-SMART=30% wystarcza jako odpowiedz na D1, czy NAIVE=2% (spadek z ~18% przy
+starym/szerszym pool wedlug historycznej notatki w harnessie) to sygnal ze progi enc8-10 sa za
+ostre dla gracza bez zadnego totemu ponad-Common i wymaga tuningu przed Faza 3.
+
+Komentarz z wynikiem zapisany tez w `RunShopService.luau` przy `availableTotemPool`.
+
 ## Otwarte zadania (kolejnosc do zrobienia)
 
-1. **BRAMKA D1 — harness pula=starter** (PRZED Faza 3, blokujaca): przepuscic
-   `tests/BalanceHarness.studio.luau` (lub nowy wariant) z pula sklepu = TYLKO starter (5
-   Common, symuluje swiezego gracza z zerem rolli) i sprawdzic ze completion rate nie spada
-   ponizej 20%. Jesli spadnie — nowy gracz przegrywa wszystko i odchodzi w pierwszej sesji, trzeba
-   tuningowac przed czymkolwiek dalej. TODO zapisane w `RunShopService.luau` przy
-   `availableTotemPool`.
-2. *(nastepne po D1 — NIE planowac jeszcze, czeka na wynik harnessu)* Faza 3.
+1. *(NIE planowac jeszcze — czeka na potwierdzenie Andreasa czy D1 jest w pelni zamkniete, patrz
+   sekcja wyzej)* Faza 3.
 
 ## Stan git
 
