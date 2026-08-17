@@ -21,6 +21,7 @@ local REMOTES: { [string]: string } = {
 	EndEncounterVoluntary = "RemoteFunction", -- C->S () -> PlayOutcome
 	BuyShopItem = "RemoteFunction", -- C->S (slotKey:"totem"|"upgrade"|"scroll") -> {ok, reason?}
 	RerollShop = "RemoteFunction", -- C->S () -> {ok, reason?}
+	PickStartTotem = "RemoteFunction", -- C->S (totemId:string) -> {ok, reason?} — start-of-run pick (Faza 4 Krok 0), opcje w RunState.startPickOptions
 	RunStateSync = "RemoteEvent", -- S->C RunState (push po kazdej mutacji: play/swap/shop) — klient renderuje z tego, nie z return value
 
 	-- Faza 2a: persystencja (Essence)

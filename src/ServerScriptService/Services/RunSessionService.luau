@@ -5,12 +5,12 @@
 -- przez funkcje tego modułu.
 --
 -- Zakres uproszczony vs Architektura §2's "Czyta" (świadoma decyzja, ujawniona w raporcie ze
--- smoke-testu): ProfileService/StatProfileService/EconomyService/SeedService NIE istnieją jeszcze
--- (Faza 2+ per Architektura §7 — budowane PO tym kroku). RunSessionService jest więc na razie
--- samowystarczalny: złoto runowe trzymane wprost w RunState (uzasadnienie: EconomyService's own
+-- smoke-testu): złoto runowe trzymane wprost w RunState (uzasadnienie: EconomyService's own
 -- opis rozróżnia "Esencja (persistent) + złoto runowe (per-run, ulotne)" — tylko ulotna połowa jest
--- w zakresie teraz), start z PUSTYM paskiem totemów (meta-kolekcyjny "pick 1 z 3" z GDD odłożony,
--- bo wymaga RollService/kolekcji, których nie ma).
+-- w zakresie teraz).
+-- Faza 4 Krok 0: run startuje z PUSTYM run.totems, ale startPickOptions jest wypelniany od razu
+-- (RunShopService.startPick, leniwy ServiceRegistry w startRunForPlayer) — "pick 1 z 3" z GDD §2.7
+-- juz zaimplementowane, nie odlozone.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage.Shared
@@ -64,6 +64,9 @@ export type RunState = {
 
 	shopOffers: { [string]: any }?,
 	shopRerollCost: number,
+
+	startPickOptions: { TotemDef }?, -- Faza 4 Krok 0: wypelniane przez RunShopService.startPick tuz po starcie runu
+	startPickDone: boolean,
 
 	log: { string },
 }
@@ -168,7 +171,7 @@ function RunSessionService.startRun(seed: number, mode: string?): RunState
 		swapsRemaining = 0,
 
 		gold = 0,
-		totems = {}, -- pusty pasek startowy (meta pick odłożony, patrz komentarz na górze pliku)
+		totems = {}, -- pusty do czasu wyboru z startPickOptions (RunShopService.choosePick)
 		totemState = {},
 		spellUpgrades = {},
 		scrolls = {},
@@ -179,6 +182,9 @@ function RunSessionService.startRun(seed: number, mode: string?): RunState
 
 		shopOffers = nil,
 		shopRerollCost = 0,
+
+		startPickOptions = nil,
+		startPickDone = false,
 
 		log = {},
 	}
@@ -303,6 +309,15 @@ function RunSessionService.startRunForPlayer(player: Player, seed: number, mode:
 		run.swapsRemaining += (stats.extraSwaps or 0)
 	end
 
+	-- Faza 4 Krok 0: leniwy ServiceRegistry.has (ten sam wzorzec co IndexService.GetLuckBonus w
+	-- StatProfileService.Recompute) -- unika cyklu require, RunShopService juz wymaga tego modulu.
+	-- pickSize = stats.startPickSize (neutralizowany do bazy w ranked przez Get(player, mode) wyzej,
+	-- wiec ranked zawsze dostaje GameConfig.StatBase.startPickSize bez osobnego rozgalezienia tutaj).
+	if ServiceRegistry.has("RunShopService") then
+		local pickSize = (stats and stats.startPickSize) or GameConfig.StatBase.startPickSize
+		ServiceRegistry.get("RunShopService").startPick(run, pickSize)
+	end
+
 	_runs[player] = run
 	return run
 end
@@ -341,6 +356,9 @@ function RunSessionService.snapshot(run: RunState): { [string]: any }
 
 		shopOffers = run.shopOffers,
 		shopRerollCost = run.shopRerollCost,
+
+		startPickOptions = run.startPickOptions,
+		startPickDone = run.startPickDone,
 
 		drawPileCount = #run.drawPile,
 		discardPileCount = #run.discardPile,

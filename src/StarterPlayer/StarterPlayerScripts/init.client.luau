@@ -19,6 +19,7 @@ local ORDER = {
 	"AnnouncementController", -- Faza 3: po UIRootController (root "Toast"), niezależny od HUD-u
 	"HudController",
 	"RunFlowController",
+	"StartPickController", -- Faza 4 Krok 0: modal picku startowego, po RunFlowController, niezależny od HUD-u
 	"HandController",
 	"ScoreFxController",
 	"TotemBarController",

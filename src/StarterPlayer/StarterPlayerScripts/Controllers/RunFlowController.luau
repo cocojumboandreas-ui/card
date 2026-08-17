@@ -6,8 +6,8 @@
 -- Uproszczenie vs Architektura §3 "Steruje widocznością HandController": zamiast RunFlowController
 -- pchającego widoczność do HandController (kolejność-require pułapka), HandController/TotemBar/
 -- Hud same czytają NetController.state.status -- ten kontroler odpowiada WYŁĄCZNIE za własne ekrany.
--- Meta-kolekcyjny "pick 1 z 3 Totemów" na start z Architektury §3 pominięty: RunSessionService startuje
--- z pustym paskiem totemów w 2a (patrz komentarz na górze tego pliku serwerowego).
+-- Meta-kolekcyjny "pick 1 z 3 Totemów" na start ma WŁASNY kontroler (StartPickController, Faza 4
+-- Krok 0) -- ten plik już go nie dotyczy.
 
 local UIFactory = require(script.Parent.UIFactory)
 local UIRootController = require(script.Parent.UIRootController)
@@ -36,7 +36,7 @@ local function showBanner(state: { [string]: any })
 	if state.deadElement then
 		table.insert(parts, `{state.deadElement} nullified this fight`)
 	end
-	_bannerLabel.Text = table.concat(parts, "\n")
+	_bannerLabel.Text = table.concat(parts, string.char(10))
 	_banner.Visible = true
 
 	task.delay(2.2, function()

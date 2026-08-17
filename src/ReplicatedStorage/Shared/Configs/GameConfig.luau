@@ -50,12 +50,16 @@ GameConfig.RollCostEssence = 50
 -- skilli/kolekcji. Faza 2a czyta tylko luck/essenceMult/extraPlays/extraSwaps/startPickSize
 -- (skille dopiero w Fazie 2b); offlineRate/fastRoll czekają na OfflineEarnService/RollService, ale
 -- żyją tu już teraz, żeby dołożenie tamtych serwisów nie wymagało zmiany kształtu Stats.
+-- startPickSize=3 (Faza 4 Krok 0, GDD §2.7 "1 z 3"): to jest OFEROWANA pula startowego picku, nie
+-- delta jak extraPlays/extraSwaps -- gamepass "+2 Sloty startowego picku" dodaje na to (3->5,
+-- Faza 4 Krok 3), ranked neutralizuje z powrotem do tej bazy (RANKED_NEUTRAL_FIELDS,
+-- StatProfileService.Get).
 GameConfig.StatBase = {
 	luck = 1,
 	essenceMult = 1,
 	extraPlays = 0,
 	extraSwaps = 0,
-	startPickSize = 1,
+	startPickSize = 3,
 	offlineRate = 0,
 	fastRoll = false,
 }

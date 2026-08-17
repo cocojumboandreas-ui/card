@@ -65,7 +65,9 @@ function SeedUtil.newStream(seed: number | string, name: string): Stream
 end
 
 -- Canonical Phase-1 stream names (RunSessionService will read from this table).
-SeedUtil.StreamNames = { "deck", "shop", "guardian", "totemProc" }
+-- "startPick" (Faza 4 Krok 0): osobny strumień dla start-of-run Totem Pick, żeby draw picku nie
+-- przesuwał sekwencji późniejszych reroll'i sklepu (ten sam powód co osobne "deck"/"shop").
+SeedUtil.StreamNames = { "deck", "shop", "guardian", "totemProc", "startPick" }
 
 -- One Stream per canonical name, all derived from the same run seed.
 function SeedUtil.streams(seed: number | string): { [string]: Stream }

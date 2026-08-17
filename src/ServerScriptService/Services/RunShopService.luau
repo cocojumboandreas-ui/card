@@ -14,6 +14,7 @@ local SpellConfig = require(Shared.Configs.SpellConfig)
 local ShopConfig = require(Shared.Configs.ShopConfig)
 local GameConfig = require(Shared.Configs.GameConfig)
 local RankedConfig = require(Shared.Configs.RankedConfig)
+local SeedUtil = require(Shared.SeedUtil)
 
 local Framework = ReplicatedStorage:WaitForChild("Framework")
 local Net = require(Framework:WaitForChild("Net"))
@@ -89,6 +90,63 @@ end
 -- FULL-SMART completion 30% (>=20%, PASS). NAIVE (zero-decyzji floor) 2% — oczekiwane, ten bot
 -- nigdy nie swapuje/nie kupuje mądrze, to zawsze był floor a nie realistyczny fresh-player proxy.
 -- Szczegoly w STATUS.md.
+
+-- Faza 4 Krok 0: Start-of-run Totem Pick (GDD §2.7 "1 z 3"). Wolane leniwie z
+-- RunSessionService.startRunForPlayer (ServiceRegistry.has, unika cyklu require -- ten modul juz
+-- wymaga RunSessionService). Rownowaznik open()/rollTotemOffer ale: (1) wlasny strumien "startPick"
+-- (nie "shop" -- nie chcemy przesuwac sekwencji pozniejszych reroll'i sklepu), (2) draw BEZ
+-- powtorzen przez SeedUtil.shuffle+take (nie nextInt per slot jak rollTotemOffer, bo tam
+-- powtorzenia sa OK -- tu maja byc unikalne opcje), (3) darmowe, nie kosztuje zlota.
+function RunShopService.startPick(run: RunState, pickSize: number)
+	local pool = availableTotemPool(run)
+	if #pool == 0 then
+		run.startPickOptions = {}
+		return
+	end
+	local shuffled = SeedUtil.shuffle(pool, run.streams.startPick)
+	local options = {}
+	for i = 1, math.min(pickSize, #shuffled) do
+		table.insert(options, shuffled[i])
+	end
+	run.startPickOptions = options
+	local ids = {}
+	for _, t in options do
+		table.insert(ids, t.id)
+	end
+	logLine(run, `start pick offered ({#options}): {table.concat(ids, ", ")}`)
+end
+
+-- Wstawia wybrany totem do run.totems ZA DARMO (nie sklep -- to jest bezplatny wybor startowy, nie
+-- zakup). Blokuje ponowny pick w tym runie przez run.startPickDone (flaga na runie, jak
+-- run.shopOffers dla sklepu).
+function RunShopService.choosePick(run: RunState, totemId: string): { ok: boolean, reason: string? }
+	if run.startPickDone then
+		return { ok = false, reason = "already picked" }
+	end
+	local options = run.startPickOptions
+	if options == nil or #options == 0 then
+		return { ok = false, reason = "no pick available" }
+	end
+	local chosen = nil
+	for _, t in options do
+		if t.id == totemId then
+			chosen = t
+			break
+		end
+	end
+	if chosen == nil then
+		return { ok = false, reason = "totemId not in offered options" }
+	end
+	if #run.totems >= GameConfig.TotemSlots then
+		return { ok = false, reason = "totem slots full" }
+	end
+
+	table.insert(run.totems, chosen)
+	run.startPickDone = true
+	run.startPickOptions = nil
+	logLine(run, `start pick chosen: {totemId}`)
+	return { ok = true }
+end
 
 local function rollTotemOffer(run: RunState): { [string]: any }?
 	local pool = availableTotemPool(run)
@@ -185,6 +243,7 @@ function RunShopService.Init() end
 function RunShopService.Start()
 	local buyShopItem = Net.get("BuyShopItem")
 	local rerollShop = Net.get("RerollShop")
+	local pickStartTotem = Net.get("PickStartTotem")
 	local runStateSync = Net.get("RunStateSync")
 
 	-- Minimalny debounce, jak w RunSessionService/PlayService.Start() -- patrz komentarz tam.
@@ -226,6 +285,21 @@ function RunShopService.Start()
 			return { ok = false, reason = "rate limited" }
 		end
 		local result = RunShopService.reroll(run)
+		if result.ok then
+			pushState(player, run)
+		end
+		return result
+	end
+
+	pickStartTotem.OnServerInvoke = function(player: Player, totemId: string)
+		local run = RunSessionService.getRun(player)
+		if run == nil then
+			return { ok = false, reason = "no active run" }
+		end
+		if debounced(player) then
+			return { ok = false, reason = "rate limited" }
+		end
+		local result = RunShopService.choosePick(run, totemId)
 		if result.ok then
 			pushState(player, run)
 		end

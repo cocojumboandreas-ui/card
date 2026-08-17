@@ -15,6 +15,7 @@ local ROOTS = {
 	{ name = "RunFlow", order = 20 },
 	{ name = "Roll", order = 25 }, -- Faza 2b: reveal rolla, nad RunFlow, pod Shop
 	{ name = "Shop", order = 30 },
+	{ name = "StartPick", order = 32 }, -- Faza 4 Krok 0: modal picku startowego, nad Shop (pierwsza decyzja runu)
 	{ name = "ScoreFx", order = 40 },
 	{ name = "Index", order = 45 }, -- Faza 2b: panel kolekcji, nad ScoreFx
 	{ name = "Toast", order = 50 }, -- Faza 3: krótkie popupy (offline earn, streak, questy...), zawsze na wierzchu
