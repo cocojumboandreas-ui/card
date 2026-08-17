@@ -23,6 +23,7 @@ local ORDER = {
 	"OfflineEarnService", -- Faza 3: zależy tylko od Profile/Stat/Economy, zero zależności od runu
 	"IndexService",
 	"RollService",
+	"SeedService", -- Faza 3: czysta funkcja, zero zależności; PRZED RunSessionService (użyty w startRun)
 	"RunSessionService",
 	"PlayService",
 	"RunShopService",

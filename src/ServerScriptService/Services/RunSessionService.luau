@@ -277,6 +277,7 @@ local _runs: { [Player]: RunState } = {}
 local _profileService = nil
 local _statProfile = nil
 local _economy = nil
+local _seed = nil
 
 -- Konwersja ulotnego złota runu -> persystentnej Esencji, wołana WYŁĄCZNIE przy przejściu
 -- run.status w "won"/"lost" (koniec runu). run.owner==nil (run anonimowy) -> no-op.
@@ -354,6 +355,7 @@ function RunSessionService.Start()
 	_profileService = ServiceRegistry.get("ProfileService")
 	_statProfile = ServiceRegistry.get("StatProfileService")
 	_economy = ServiceRegistry.get("EconomyService")
+	_seed = ServiceRegistry.get("SeedService")
 
 	-- Lekcja Bug 2B (patrz ProfileService): sprzątanie na ProfileReleasing, NIE na osobnym
 	-- Players.PlayerRemoving — inaczej wyścig z EndSession przy zamykaniu profilu.
@@ -379,8 +381,9 @@ function RunSessionService.Start()
 
 		-- Faza 2a: mode="free" jedyny obslugiwany (zasada 12 -- ranked to gotowy hook w ScoreEngine/
 		-- RunState, nie feature; wartosc od klienta jest IGNOROWANA az RollService/kolekcja beda
-		-- gotowe, Faza 2b+ -- patrz komentarz przy `mode` w typie RunState powyzej).
-		local seed = Random.new():NextInteger(1, 2147483646)
+		-- gotowe, Faza 2b+ -- patrz komentarz przy `mode` w typie RunState powyzej). Seed: SeedService
+		-- (Faza 3 krok #3) zamiast inline Random.new() -- zachowanie identyczne, jedno zrodlo prawdy.
+		local seed = _seed.RandomSeed()
 		local run = RunSessionService.startRunForPlayer(player, seed, "free")
 		local state = RunSessionService.snapshot(run)
 		-- redundant z RF-returnem, ale trzyma się inwariantu "klient renderuje WYŁĄCZNIE z

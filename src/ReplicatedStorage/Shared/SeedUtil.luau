@@ -35,6 +35,10 @@ local function newRng(seed: number): () -> number
 	end
 end
 
+-- Faza 3 (SeedService): exposes the same hash used internally for streams, so DailySeed can turn a
+-- UTC date key into a deterministic integer without a second, divergent hash implementation.
+SeedUtil.hashString = fnv1a32
+
 -- One independent Stream: base seed + stream name are hashed together, so e.g. "shop" and "deck"
 -- never share state even though both derive from the same run seed.
 function SeedUtil.newStream(seed: number | string, name: string): Stream

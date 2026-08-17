@@ -201,10 +201,46 @@ odpalil raz z prawdziwego zagrania, GuardianDefeated 6x (3 straznikow × 2 pozio
 id: hungryShadow/elementEater/thresholdWarden), RunEnded raz na koncu z status=won, poprawnym
 seed/mode/gold. Wszystkie 4 sygnaly (liczac TotemRolled=Rolled) potwierdzone dzialajace.
 
-**Nastepny krok: SeedService (`DailySeed`/`RandomSeed`/`FriendSeed`) — czysta funkcja, zero zaleznosci.**
+### Krok #3 — SeedService — ZROBIONE, zweryfikowane live (2026-08-17)
+
+Nowy plik `ServerScriptService/Services/SeedService.luau` — czysta funkcja + `os.date`, zero stanu:
+
+- `DailyKey(nowUtc)` — `"YYYYMMDD"` wg UTC (nie lokalny czas gracza), fundament trybu ranked
+  (zasada 12): ten sam klucz dla wszystkich stref czasowych.
+- `DailySeed(nowUtc)` — hash `DailyKey` przez `SeedUtil.hashString` (nowy alias na istniejacy
+  wewnetrzny `fnv1a32`, zeby nie duplikowac drugiej, rozjezdzajacej sie implementacji hasha) ->
+  `(hash % 2147483646) + 1`. Identyczny seed dla wszystkich graczy w tej samej dobie UTC.
+- `RandomSeed()` — port 1:1 inline'a, ktory wczesniej zyl w `RunSessionService.Start()`
+  (`Random.new():NextInteger(1, 2147483646)`), zachowanie bez zmian.
+- `FriendSeed(rawSeed)` — walidacja typu/zakresu (NaN/inf/zly typ -> nil), hook na feature
+  "seed od znajomego" na pozniej, zero dodatkowej logiki teraz.
+
+`Bootstrap.server.luau`: `SeedService` dopisany do `ORDER` po `RollService`, przed
+`RunSessionService`. `RunSessionService.Start()` woła `ServiceRegistry.get("SeedService")`;
+`startRun.OnServerInvoke` uzywa `_seed.RandomSeed()` zamiast inline `Random.new()` — refaktor
+bez zmiany zachowania, `mode` dalej twardo `"free"` (ranked wciaz czeka na krok #4).
+
+Zweryfikowane live w solo playteście przez `eval_server_runtime`:
+- `DailyKey`/`DailySeed` deterministyczne (dwa wywolania tego samego `nowUtc` -> identyczny
+  wynik) i rozne dla kolejnej doby UTC — PASS
+- `DailySeed` w zakresie `[1, 2147483646]` — PASS
+- `RandomSeed()` w zakresie i zmienny miedzy wywolaniami — PASS
+- `FriendSeed`: liczba calkowita przechodzi, float floorowany, NaN/inf/string -> `nil` — PASS
+- `RunSessionService.startRun(SeedService.RandomSeed(), "free")` dziala bez bledow po wpiecu
+  SeedService — PASS
+
+**Nastepny krok: krok #4 — tryb ranked.** RankedConfig (neutralna pula Totemow, propozycja skladu
+do potwierdzenia z Andreasem — dopracowanie #3, jeszcze nie zlozona), odpiecie `mode` w
+`startRun.OnServerInvoke` od twardego `"free"`, przeplyw `ranked` do `ScoreEngine` (pole `ranked`
+juz istnieje). PRZED przejsciem do LeaderboardService: **twardy test determinizmu ranked**
+(dopracowanie #2 Andreasa) — dwaj gracze, bogata vs pusta kolekcja, ten sam Seed Dnia, te same
+decyzje -> wynik MUSI byc identyczny; wynik pokazany Andreasowi jako bramka przed dalsza praca.
 
 ## Stan git
 
-- Branch `main`, w pelni zsynchronizowany z `origin/main` (push potwierdzony, `032cfec..9201931`
-  + biezacy commit sygnalow ponizej).
-- `git status` czysty. `cardsw/` w `.gitignore`, nie pojawia sie juz jako untracked.
+- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu sygnalow `091d5bf`.
+- Biezacy batch SeedService (`SeedUtil.luau`, nowy `SeedService.luau`, `Bootstrap.server.luau`,
+  `RunSessionService.luau`, ten plik) zmieniony lokalnie + wypchniety do zywego Studio,
+  **jeszcze niescommitowany** — kolejny krok w tej sesji.
+- `git status` czysty poza tym batchem. `cardsw/` w `.gitignore`, nie pojawia sie juz jako
+  untracked.
