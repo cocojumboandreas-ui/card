@@ -25,6 +25,11 @@ local REMOTES: { [string]: string } = {
 
 	-- Faza 2a: persystencja (Essence)
 	EssenceSync = "RemoteEvent", -- S->C {balance:number}
+
+	-- Faza 2b: roll + indeks
+	RollTotem = "RemoteFunction", -- C->S () -> RollResult{ok, totemId?, tier?, variant?, isNewDiscovery?, pityTriggered?, essence?, reason?}
+	ClaimIndexLuck = "RemoteFunction", -- C->S (pct:number) -> {ok, luckBonus?, reason?}
+	GetIndexState = "RemoteFunction", -- C->S () -> IndexState{entries, overall, luckBonus, thresholds}
 }
 
 local Net = {}

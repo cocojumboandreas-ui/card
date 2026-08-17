@@ -43,6 +43,9 @@ GameConfig.ExcessGoldCap = 50 -- max złota z nadwyżki na jedno starcie
 -- pod tą nazwą; mnożone przez Strażnikowe rewardMult, np. thresholdWarden x2).
 GameConfig.EncounterGoldReward = 20
 
+-- Koszt jednego rolla Stworka w Esencji (Faza 2b, RollService). PLACEHOLDER — tuning po graniu.
+GameConfig.RollCostEssence = 50
+
 -- Bazowe Staty v1 (Architektura §2, tabela StatProfileService) — neutralne wartości PRZED deltami
 -- skilli/kolekcji. Faza 2a czyta tylko luck/essenceMult/extraPlays/extraSwaps/startPickSize
 -- (skille dopiero w Fazie 2b); offlineRate/fastRoll czekają na OfflineEarnService/RollService, ale

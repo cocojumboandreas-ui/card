@@ -64,6 +64,13 @@ end
 function StatProfileService.Recompute(player: Player)
 	local data = _profileService and _profileService.GetProfile(player) or nil
 	local stats = compute(data)
+	-- Faza 2b: bonus luck z Indeksu (ODEBRANE progi, IndexService.ClaimLuck) — pobrane LENIWIE przez
+	-- ServiceRegistry (nie top-level require) żeby uniknąć cyklu load-order z IndexService, który
+	-- sam woła StatProfileService.Recompute po każdym claimie. compute() zostaje CZYSTE/testowalne;
+	-- ten dopisek żyje tylko tutaj, w Recompute (ma player, compute() celowo go nie ma).
+	if ServiceRegistry.has("IndexService") then
+		stats.luck += ServiceRegistry.get("IndexService").GetLuckBonus(player)
+	end
 	_cache[player] = stats
 	if StatProfileService.StatsChanged then
 		StatProfileService.StatsChanged:Fire(player, stats)

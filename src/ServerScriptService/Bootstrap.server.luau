@@ -10,13 +10,18 @@ local Framework = ReplicatedStorage:WaitForChild("Framework")
 local ServiceRegistry = require(Framework:WaitForChild("ServiceRegistry"))
 local Services = ServerScriptService:WaitForChild("Services")
 
--- ProfileService -> StatProfileService -> EconomyService -> RunSessionService -> PlayService ->
--- RunShopService (Faza 2a). Wszystkie sześć mają teraz Init/Start (krok 5: PlayService/
--- RunShopService.Start() wiążą swoje remote'y z Net.luau -- patrz te pliki).
+-- ProfileService -> StatProfileService -> EconomyService -> IndexService -> RollService ->
+-- RunSessionService -> PlayService -> RunShopService (Faza 2a + 2b). IndexService/RollService
+-- wstawione PRZED RunSessionService (Architektura §2: RollService/IndexService żyją POZA runem,
+-- nic z runu ich nie potrzebuje przy starcie) -- kolejność register() nie wpływa na
+-- ServiceRegistry.get() (wszystkie zarejestrowane PRZED initAll/startAll), ale trzymamy ją zgodną z
+-- grafem zależności dla czytelności.
 local ORDER = {
 	"ProfileService",
 	"StatProfileService",
 	"EconomyService",
+	"IndexService",
+	"RollService",
 	"RunSessionService",
 	"PlayService",
 	"RunShopService",
