@@ -7,6 +7,8 @@
 -- (Foil/Gold/Galaxy/Rainbow) = zwykły TextLabel, zero animacji.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Framework = ReplicatedStorage:WaitForChild("Framework")
+local Signal = require(Framework:WaitForChild("Signal"))
 
 local UIFactory = require(script.Parent.UIFactory)
 local UIRootController = require(script.Parent.UIRootController)
@@ -15,6 +17,10 @@ local TotemConfig = require(ReplicatedStorage.Shared.Configs.TotemConfig)
 local CardArtConfig = require(ReplicatedStorage.Shared.Configs.CardArtConfig)
 
 local RollRevealController = {}
+
+-- Top-level (nie w Init/Start) -- wzorzec NetController.StateChanged: musi istniec od chwili
+-- require(), zeby FTUEController (Faza 4 Krok 5) moglo sie podpiac niezaleznie od kolejnosci Start().
+RollRevealController.RollCompleted = Signal.new() -- (result) po pelnym, udanym reveal'u
 
 -- Pacing port (WAR RNG RevealConfig.tiers §): Common szybki spin, Legendary dłuższy/suspensyjny.
 -- Wartości własne (5 nazwanych tierów zamiast ich 1/3/5 numerycznych), ta sama rosnąca krzywa.
@@ -117,6 +123,7 @@ local function playReveal(result: { [string]: any })
 
 	task.wait(pacing.holdSec)
 	_dim.Visible = false
+	RollRevealController.RollCompleted:Fire(result)
 end
 
 function RollRevealController.RequestRoll()

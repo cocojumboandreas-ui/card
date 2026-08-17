@@ -22,6 +22,7 @@ local ORDER = {
 	"EconomyService",
 	"PurchaseService", -- Faza 4 Krok 2: ProcessReceipt + gamepass cache, zależy od Profile/Economy/Stat
 	"PolicyService", -- Faza 4 Krok 4: tabela szans (compliance), zero zależności, cienki config-reader
+	"FtueService", -- Faza 4 Krok 5: push/odbior flagi ftueDone, zależy tylko od Profile
 	"OfflineEarnService", -- Faza 3: zależy tylko od Profile/Stat/Economy, zero zależności od runu
 	"IndexService",
 	"RollService",

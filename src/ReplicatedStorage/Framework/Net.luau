@@ -44,6 +44,10 @@ local REMOTES: { [string]: string } = {
 
 	-- Faza 4: monetyzacja
 	GetOddsTable = "RemoteFunction", -- C->S () -> {tiers:{{tier,pct}}, tiersNote, variants:{{id,pct}}, variantsExcluded, pity} (PolicyService, cache-owane raz po stronie serwera)
+
+	-- Faza 4 Krok 5: FTUE
+	FtueSync = "RemoteEvent", -- S->C {ftueDone:boolean} — push raz po ProfileLoaded (FtueService)
+	MarkFtueDone = "RemoteEvent", -- C->S () — klient (FTUEController) sygnalizuje koniec sekwencji onboardingu; serwer ustawia profile.ftueDone=true (idempotent, fire-and-forget)
 }
 
 local Net = {}

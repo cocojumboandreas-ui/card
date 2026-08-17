@@ -25,6 +25,7 @@ local ORDER = {
 	"ScoreFxController",
 	"TotemBarController",
 	"RunShopController",
+	"FTUEController", -- Faza 4 Krok 5: podpowiedzi onboardingu, po RunShopController (wszystkie kontrolery ktore obserwuje juz istnieja)
 }
 
 for _, name in ipairs(ORDER) do
