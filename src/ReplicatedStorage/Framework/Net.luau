@@ -33,6 +33,8 @@ local REMOTES: { [string]: string } = {
 
 	-- Faza 3: retencja
 	OfflineEarnings = "RemoteEvent", -- S->C {essence:number, seconds:number} — jednorazowy popup po ProfileLoaded, tylko gdy essence>0
+	GetLeaderboard = "RemoteFunction", -- C->S (kind:"daily"|"allTime") -> {ok, list?:{{rank,userId,score}}, updatedAt?, reason?}
+	LeaderboardSync = "RemoteEvent", -- S->C (kind:"daily"|"allTime", list:{{rank,userId,score}}) — push po każdym cache-refresh (co 60s)
 }
 
 local Net = {}

@@ -274,14 +274,60 @@ Ostatni wiersz jest dowodem strukturalnym, nie tylko empirycznym: kod ranked-owe
 (`rankedTotemPool`) fizycznie nie odwoluje sie do funkcji czytajacej kolekcje gracza, wiec zaden
 przyszly stan kolekcji (bogaty czy pusty) nie moze przeciekac do wyniku rankedowego runu.
 
-**Bramka zamknieta. Nastepny krok: LeaderboardService** (mediana-z-3 anty-cheat — zelazna zasada
-architektury, NIE do ciecia).
+**Bramka zamknieta.**
+
+### Krok #5 — LeaderboardService — ZROBIONE, zweryfikowane live (2026-08-17)
+
+Nowe pliki: `LeaderboardConfig.luau` (Shared/Configs, stale: `GoldWeight=1_000_000`,
+`DailyTopCount=3`, `RefreshIntervalSeconds=60`, `TopN=100`, nazwy 2 OrderedDataStore),
+`LeaderboardService.luau` (ServerScriptService/Services). 2 nowe remoty w `Net.luau`:
+`GetLeaderboard` (RF, C->S kind:"daily"|"allTime") i `LeaderboardSync` (RE, S->C push po
+kazdym cache-refresh). Wpiety w `Bootstrap.server.luau` ORDER po `RunShopService`.
+
+Realizacja 4 twardych zasad Andreasa (verbatim z briefu):
+
+1. **Mediana-z-3, nie jeden perfekcyjny run.** `profile.bestScores.daily[dateKey]` trzyma
+   `{scores={top-3 malejaco}, median}` — kazdy nowy ranked `RunEnded` wstawia rankScore,
+   sortuje malejaco, przycina do 3. Publikowany wpis = srodkowy element (mediana z 3).
+   Stare klucze dnia (`dateKey != dzisiejszy`) czyszczone przy kazdym zapisie — Seed Dnia jest
+   efemeryczny z definicji.
+2. **Zapis TYLKO z `RunSessionService.RunEnded`.** LeaderboardService nie ma zadnego innego
+   punktu wejscia mutujacego `bestScores` — zero remote'ow C->S zapisujacych wynik, klient
+   moze tylko CZYTAC (`GetLeaderboard`).
+3. **OrderedDataStore + throttle.** Zdarzenia `RunEnded` tylko aktualizuja pamieciowy bufor
+   `_pendingDaily`/`_pendingAllTime` (zero I/O). Osobna petla `task.spawn` co
+   `RefreshIntervalSeconds` (60s) robi batch `SetAsync` + `GetSortedAsync(false, TopN)` +
+   `FireAllClients` — czestotliwosc I/O niezalezna od liczby/tempa runow.
+4. **Seed Dnia = WYLACZNIE ranked.** Blok liczacy mediane wykonuje sie tylko gdy
+   `result.mode=="ranked"`; wolny tryb aktualizuje **jedynie** `bestScores.allTime` (osobna,
+   swiadomie NIE-wyrownana tablica — kolekcja legalnie pcha allTime w gore, tak jak zaklada
+   monetyzacja Fazy 4; GDD linia 101 wprost zabrania mieszania trybow na Seed Dnia).
+
+`rankScore = encounterIndex * GoldWeight + clamp(gold, 0, GoldWeight-1)` — encounterIndex
+zawsze dominuje (dalszy postep > wiecej zlota na plytszym runie), zloto tylko rozstrzyga remis.
+Won run konczy sie `encounterIndex=13` (jeden za `GameConfig.Levels*EncountersPerLevel=12`),
+wiec kazda wygrana bije kazda przegrana automatycznie, bez specjalnego przypadku w kodzie.
+
+Tygodniowy leaderboard (trzeci z Architektury §2 linia 73) **swiadomie wyciety** ta runda —
+zgodnie z wczesniejsza cut-lista w tym pliku, daily+allTime pokrywaja retencje D1/D7, trzeci
+wymiar nie jest krytyczny teraz.
+
+Weryfikacja live (solo playtest + `eval_server_runtime`/`eval_client_runtime`):
+
+| Sprawdzenie | Wynik |
+|---|---|
+| 3x ranked `RunEnded` (enc 5/8/13, gold 20/10/45) -> mediana | `8000010` (srodkowy z posortowanych `[13000045,8000010,5000020]`) — **poprawne** |
+| 4. run w trybie `free` (enc 12, gold 999999) | **nie wszedl** do `daily` (mediana bez zmian), **wszedl** do `allTime` (`13000045`, bo > `12999999`) — **poprawne rozdzielenie trybow** |
+| Wstrzykniety smieciowy stary dzien (`"20200101"`) + kolejny ranked `RunEnded` | stary klucz **usuniety**, zostal tylko dzisiejszy `dateKey` — **poprawne** |
+| `GetLeaderboard("weekly")` (nieobslugiwany kind) | `{ok=false, reason="unknown kind"}` — **poprawne odrzucenie** |
+| `GetLeaderboard("daily")`/`("allTime")` po pelnym cyklu 60s (real-time, nie symulowane) | `list` z wpisem gracza, `score` zgodny z mediana/allTime powyzej — **pelny round-trip OrderedDataStore potwierdzony** |
+| `get_runtime_logs filter="LeaderboardService"` | tylko `Init`/`Start`, zero `warn` (brak bledow `SetAsync`/`GetSortedAsync`) |
 
 ## Stan git
 
-- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu `e6e8960` (SeedService).
-- Biezacy batch trybu ranked (`RankedConfig.luau` nowy, `RunShopService.luau`,
-  `RunSessionService.luau`, ten plik) zmieniony lokalnie + wypchniety do zywego Studio,
-  **jeszcze niescommitowany** — kolejny krok w tej sesji.
+- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu `384903b` (tryb ranked).
+- Biezacy batch LeaderboardService (`LeaderboardConfig.luau` nowy, `LeaderboardService.luau`
+  nowy, `Net.luau`, `Bootstrap.server.luau`, ten plik) zmieniony lokalnie + wypchniety do
+  zywego Studio, **jeszcze niescommitowany** — kolejny krok w tej sesji.
 - `git status` czysty poza tym batchem. `cardsw/` w `.gitignore`, nie pojawia sie juz jako
   untracked.
