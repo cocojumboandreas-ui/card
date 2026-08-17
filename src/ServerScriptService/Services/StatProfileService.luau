@@ -15,6 +15,9 @@ local Framework = ReplicatedStorage:WaitForChild("Framework")
 local Signal = require(Framework:WaitForChild("Signal"))
 local ServiceRegistry = require(Framework:WaitForChild("ServiceRegistry"))
 local GameConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Configs"):WaitForChild("GameConfig"))
+local MarketplaceConfig = require(
+	ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Configs"):WaitForChild("MarketplaceConfig")
+)
 
 local STAT_FIELDS = { "luck", "essenceMult", "extraPlays", "extraSwaps", "startPickSize", "offlineRate", "fastRoll" }
 
@@ -70,6 +73,23 @@ function StatProfileService.Recompute(player: Player)
 	-- ten dopisek żyje tylko tutaj, w Recompute (ma player, compute() celowo go nie ma).
 	if ServiceRegistry.has("IndexService") then
 		stats.luck += ServiceRegistry.get("IndexService").GetLuckBonus(player)
+	end
+	-- Faza 4 Krok 3: gamepass bonusy, ten sam leniwy ServiceRegistry.has wzorzec (unika cyklu
+	-- load-order -- PurchaseService.Start() sam woła StatProfileService.Recompute po kazdym
+	-- refreshu ownership, wiec nie potrzeba top-level require). mult MNOZY (essenceMult/luck),
+	-- add DODAJE (startPickSize) -- kazde pole ma co najwyzej jeden "add"-kontrybutor w
+	-- MarketplaceConfig, wiec kolejnosc iteracji pairs() nie ma znaczenia.
+	if ServiceRegistry.has("PurchaseService") then
+		local purchase = ServiceRegistry.get("PurchaseService")
+		for key, cfg in pairs(MarketplaceConfig.GamePasses) do
+			if cfg.stat and purchase.HasGamePass(player, key) then
+				if cfg.mult then
+					stats[cfg.stat] *= cfg.mult
+				elseif cfg.add then
+					stats[cfg.stat] += cfg.add
+				end
+			end
+		end
 	end
 	_cache[player] = stats
 	if StatProfileService.StatsChanged then
