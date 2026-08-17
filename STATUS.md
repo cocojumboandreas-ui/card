@@ -1,6 +1,6 @@
 # STATUS — Roll a Rune
 
-Ostatnia aktualizacja: 2026-08-17, koniec sesji Faza 2b (serwer, przed UI).
+Ostatnia aktualizacja: 2026-08-17, koniec sesji Faza 2b (serwer + UI, w pelni zamkniete).
 Czytaj to + `git log` zamiast polegac na pamieci poprzedniej sesji.
 
 ## Dyscyplina wywolan MCP (obowiazuje od 2026-08-17)
@@ -14,6 +14,29 @@ liczby serwerow MCP. Trzymaj sie:
   Workspace, gdy potrzebny jest jeden fragment.
 - Screenshoty TYLKO gdy Andreas wprost prosi o wizualne potwierdzenie — nie profilaktycznie
   po kazdej akcji. Jeden zrzut na koniec logicznego kawalka, nie seria.
+- Uzywaj MCP `robloxstudio` (plugin Chrrxs/robloxstudio-mcp, port 58741) — NIE oficjalnego
+  `Roblox_Studio`, ktorego odpowiedzi sa wieksze i szybciej zapychaja kontekst.
+
+## TWARDA REGULA: hierarchia `Controllers` w Studio (od 2026-08-17)
+
+`game.StarterPlayer.StarterPlayerScripts.Bootstrap.Controllers` MUSI byc DZIECKIEM `Bootstrap`
+(LocalScript), NIE jego siblingiem. `Bootstrap` (`init.client.luau`) czyta
+`script:WaitForChild("Controllers")` — jesli `Controllers` wisi obok `Bootstrap` zamiast w
+srodku, kazdy kontroler klienta (Hud/Hand/RunFlow/Roll/Index/...) infinite-yielduje i gra jest
+martwa po stronie klienta, bez zadnego bledu poza jednym cichym warningiem.
+
+**Ten projekt NIE MA `project.json` (nie jest prawdziwym Rojo projektem)** — sync do Studio idzie
+recznie przez MCP (`create_object`/`set_script_source`), wiec hierarchia instancji nie jest
+zdefiniowana deklaratywnie NIGDZIE w kodzie/gicie. Naprawiona 2026-08-17 przez reczny
+`set_property` (Parent) w zywym Studio — to jest fix TYLKO w Studio, zniknie jesli plac kiedys
+powstanie od zera z pustego miejsca.
+
+**Zasada do pilnowania recznie przy kazdym odtworzeniu placu / duzym resyncu:** przed pierwszym
+playtestem po jakimkolwiek `create_object` dotykajacym `StarterPlayerScripts`, sprawdz
+`get_instance_children` na `Bootstrap` i potwierdz `Controllers` jest w srodku. Docelowa,
+solidniejsza naprawa (prawdziwy `project.json` + `rojo build`/`serve`, ktory foldowalby
+hierarchie automatycznie z ukladu folderow na dysku) to osobna decyzja architektoniczna, nie
+podjeta w tej sesji — jesli chcesz to zrobic, powiedz wprost, to nie jest male zadanie.
 
 ## Faza 2b — zrobione (commit `a4a6317`, wypchniete na `origin/main`)
 
@@ -59,29 +82,45 @@ hook w `StatProfileService` zadzialal. Zero ryzyka dla prawdziwego profilu gracz
 fejkowego in-memory profilu przez istniejace hooki `_InjectForTest`/`_SetProfileServiceForTest`,
 nigdy nie dotykaly ProfileService/DataStore. Szczegoly w naglowku pliku checkpointu.
 
-### Uwaga: nierozwiazane
+## Faza 2b UI — zrobione (commit `6ec39f9`, wypchniete na `origin/main`)
 
-- `cardsw/` (raw art PNG od Meshy, 15 Stworkow + `_originals`/`_not_mvp`) jest UNTRACKED w gicie,
-  celowo pominiete w tym commicie (nie dotyczy Fazy 2b/serwera). Do decyzji: gitignore czy commit
-  w osobnym PR-a-la-art.
+Klient, dopiete na serwerowa warstwe wyzej. Zweryfikowane LIVE w playtescie (nie tylko code
+review) via `eval_client_runtime` (klik-symulacja `simulate_mouse_input` nie dziala w tym
+srodowisku — nieklikalne przyciski na starym I nowym UI identycznie, srodowiskowy problem, nie
+bug kodu; ominiete bezposrednim wywolaniem funkcji za przyciskami):
+
+- **RunShopService** — pula totemow w sklepie w runie = starter Common (5) UNION posiadane przez
+  gracza (`IndexService.IsDiscovered`), minus juz-w-tym-runie. Swiezy gracz bez zadnego rolla ma
+  co kupic. Zweryfikowane tylko code-review (brak dedykowanego UI do klikniecia).
+- **RollRevealController** — pacing tier->duration portowany z WAR RNG `RevealConfig` (Common
+  szybko, Epic/Legendary dluzej suspensyjnie), styl kart WLASNY (`UIFactory` + `CardArtConfig`),
+  wariant = zwykly `TextLabel`, zero animacji/czasteczek. Zweryfikowane live: Common
+  (Emberpup, ~1.6s) i Rare (Merlynx, ~3.3s), oba poprawnie wyrenderowane, pacing zgodny z tabela.
+- **IndexController** — siatka 15 Stworkow (przyciemnione = nieodkryte, tier-color = odkryte),
+  pasek completeness, przyciski ODBIERZ na progach z `GetIndexState`. Zweryfikowane live: 15/15,
+  100%, siatka + pasek + 3 przyciski ODBIERZ.
+- **HudController + UIRootController** — przyciski "Roll"/"Indeks" w HUD (prawy gorny rog), nowe
+  ScreenGui rooty (`Roll` order=25, `Index` order=45). Zweryfikowane live: bez kolizji z
+  essence-barem/run-row/reka.
+- `cardsw/` (raw art PNG + `_originals`/`_not_mvp`) **rozstrzygniete**: NIE wchodzi do repo gry,
+  dodane do `.gitignore`. Backup lokalny wystarczy (juz jest). Finalne assety zyja w Roblox jako
+  uploadowane obrazy, kod czyta je przez `CardArtConfig`.
+
+Efekt uboczny live-testow: essence na koncie testowym "Onimushaa5" spadlo 1577->1576 (prawdziwy
+ProfileStore, nie sandbox — testy przez `eval_client_runtime` uzywaja prawdziwego profilu
+gracza).
 
 ## Otwarte zadania (kolejnosc do zrobienia)
 
-1. **Starter + owned shop pool** — pula totemow dostepnych w sklepie na start rundy + logika
-   "posiadane" (nie ustalone jeszcze w tej sesji, do zaprojektowania od zera).
-2. **TODO harness D1** — (nazwa robocza z poprzedniej rozmowy, tresc nie doprecyzowana w tej
-   sesji — sprawdz najblizszy kontekst/notatki zanim zaczniesz, zeby nie zgadywac zakresu).
-3. **RollRevealController** (klient) — UI ujawnienia wyniku rolla (tier/wariant/animacja).
-4. **IndexController** (klient) — UI kolekcji/indeksu, czytajace `GetIndexState`, wywolujace
-   `ClaimIndexLuck`.
-5. **HUD entry** dla Roll + Index — wpiecie przyciskow/wejscia do istniejacego HUD-a.
-6. **Zrzut portretowy** (portrait screenshot) — zadanie osobno wspomniane przez uzytkownika,
-   zapewne do materialow promo/store, szczegoly nie sprecyzowane.
-7. *(niepotwierdzone)* — uzytkownik mowil o "7 otwartych zadaniach", ale w tej sesji padlo
-   jednoznacznie tylko 6 pozycji powyzej. NIE zgaduj tresci siodmego — dopytaj uzytkownika na
-   starcie nastepnej sesji zamiast wymyslac nazwe.
+1. **BRAMKA D1 — harness pula=starter** (PRZED Faza 3, blokujaca): przepuscic
+   `tests/BalanceHarness.studio.luau` (lub nowy wariant) z pula sklepu = TYLKO starter (5
+   Common, symuluje swiezego gracza z zerem rolli) i sprawdzic ze completion rate nie spada
+   ponizej 20%. Jesli spadnie — nowy gracz przegrywa wszystko i odchodzi w pierwszej sesji, trzeba
+   tuningowac przed czymkolwiek dalej. TODO zapisane w `RunShopService.luau` przy
+   `availableTotemPool`.
+2. *(nastepne po D1 — NIE planowac jeszcze, czeka na wynik harnessu)* Faza 3.
 
 ## Stan git
 
-- Branch `main`, w pelni zsynchronizowany z `origin/main` (push potwierdzony, `2050e29..a4a6317`).
-- `git status` czysty poza `cardsw/` (untracked, patrz wyzej — swiadomie zostawione).
+- Branch `main`, w pelni zsynchronizowany z `origin/main` (push potwierdzony, `2949a33..6ec39f9`).
+- `git status` czysty. `cardsw/` w `.gitignore`, nie pojawia sie juz jako untracked.
