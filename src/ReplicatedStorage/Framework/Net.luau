@@ -39,6 +39,7 @@ local REMOTES: { [string]: string } = {
 	GetStreakState = "RemoteFunction", -- C->S () -> {ok, count, milestones:{{days,essence,reached,claimed}}}
 	ClaimQuest = "RemoteFunction", -- C->S (questId:string) -> {ok, essence?, reason?}
 	GetQuestState = "RemoteFunction", -- C->S () -> {ok, dateKey, list:{{questId,desc,target,rewardEssence,progress,claimed}}}
+	AnnouncementSync = "RemoteEvent", -- S->C {name, totemId, tier, variant} — push z MessagingService:SubscribeAsync callbacku (patrz AnnouncementService)
 }
 
 local Net = {}

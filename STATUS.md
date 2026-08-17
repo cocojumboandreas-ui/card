@@ -383,12 +383,53 @@ Weryfikacja live (solo playtest + `eval_server_runtime`/`eval_client_runtime`):
 Tygodniowy/VIP-gamepass +1 quest dzienny (GDD, Faza 4 monetyzacja) **swiadomie NIE dolozony** —
 hook zostawiony w komentarzu `QuestConfig.DailyQuestCount`.
 
+### Krok #8 — AnnouncementService — ZROBIONE, zweryfikowane live (2026-08-17), Faza 3 ZAMKNIETA
+
+Nowe pliki: `AnnouncementConfig.luau` (Shared/Configs — swiadomie NOWY plik zamiast dopisania do
+`GameConfig`, ten sam wzorzec co reszta Fazy 3). `AnnouncementService.luau`
+(ServerScriptService/Services). `AnnouncementController.luau`
+(StarterPlayerScripts/Controllers, toast w rootcie "Toast" — ten sam wzorzec co
+`OfflineEarnController`). 1 nowy remote: `AnnouncementSync` (RE, S->C, push-only). Wpiety w
+Bootstrap ORDER (server) po `QuestService`, w init.client po `OfflineEarnController`.
+
+Zero nowego sygnalu server-side — nasluchuje `RollService.Rolled` (ten sam co
+QuestService/IndexService). Prog "rzadki drop" zdefiniowany STRUKTURALNIE, nie jako twarda
+liczba: `tier=="Legendary"` (najrzadszy w `RarityConfig.TierWeight`) I wariant z
+`VariantConfig.ladder.pct <= 1` (dzis: Galaxy=1%, Rainbow=0.1%). Iloczyn: Legendary(~1.1% z
+checkpointu Fazy 2b) x Galaxy(1%) ~= 1/9090 — rzad wielkosci dokladnie zgodny z "np. 1/10k" z
+architektury (Rainbow jeszcze rzadszy, ~1/90900).
+
+Cross-server przez `MessagingService` (Architektura §2 linia 74). Kluczowa decyzja: klient
+dostaje ogloszenie WYLACZNIE z callbacku `SubscribeAsync`, NIGDY bezposrednim `FireAllClients`
+zaraz po rollu — serwer-zrodlo jest tez subskrybentem wlasnego topicu (udokumentowane zachowanie
+MessagingService), wiec podwojna sciezka dawalaby graczom na serwerze-zrodle duplikat. Jeden
+kod-path, jednolity dla wszystkich serwerow. `AnnouncementService.Announced` (Signal lokalny)
+odpala sie natychmiast na serwerze-zrodle, PRZED rundtripem MessagingService — hook na przyszlosc
+(np. analytics), swiadomie NIE napedza UI klienta. `PublishAsync`/`SubscribeAsync` pcall'owane
+(wywolania sieciowe zewnetrzne, Architektura §1 "Z PCALL").
+
+Weryfikacja live (solo playtest + `eval_server_runtime`/`eval_client_runtime`):
+
+| Sprawdzenie | Wynik |
+|---|---|
+| `_QualifiesForTest`: Legendary+Galaxy, Legendary+Rainbow | `true`, `true` — **poprawne** |
+| `_QualifiesForTest`: Legendary+Foil, Legendary+Normal, Rare+Rainbow, Epic+Galaxy | `false` x4 — **poprawne** |
+| `Rolled:Fire` z kwalifikujacym dropem -> `AnnouncementService.Announced` (lokalny Signal) | payload z `name`/`totemId`/`tier`/`variant` odebrany natychmiast — **poprawne** |
+| Pelny round-trip: `Rolled:Fire` (Legendary/Rainbow) -> `PublishAsync` -> `SubscribeAsync` callback -> `AnnouncementSync:FireAllClients` -> klient | klient odebral dokladnie 1x poprawny payload — **poprawne, brak duplikatu** |
+| `Rolled:Fire` z niekwalifikujacymi dropami (Common/Normal, Epic/Normal) | klient **nie odebral** nic nowego — **poprawne odfiltrowanie** |
+| `get_runtime_logs filter="warn"` (caly playtest) | **pusto** — zero bledow `PublishAsync`/`SubscribeAsync` w Studio |
+
+**Faza 3 (retencja) ZAMKNIETA — wszystkie 7 modulow gotowe:** sygnaly wewnetrzne, SeedService,
+tryb ranked, OfflineEarnService, LeaderboardService, StreakService, QuestService,
+AnnouncementService.
+
 ## Stan git
 
-- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu `82e5331`
-  (StreakService).
-- Biezacy batch QuestService (`QuestConfig.luau` nowy, `QuestService.luau` nowy, `Net.luau`,
-  `Bootstrap.server.luau`, ten plik) zmieniony lokalnie + wypchniety do zywego Studio,
+- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu `49aac28`
+  (QuestService).
+- Biezacy batch AnnouncementService (`AnnouncementConfig.luau` nowy, `AnnouncementService.luau`
+  nowy, `AnnouncementController.luau` nowy, `Net.luau`, `Bootstrap.server.luau`,
+  `init.client.luau`, ten plik) zmieniony lokalnie + wypchniety do zywego Studio,
   **jeszcze niescommitowany** — kolejny krok w tej sesji.
 - `git status` czysty poza tym batchem. `cardsw/` w `.gitignore`, nie pojawia sie juz jako
   untracked.
