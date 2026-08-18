@@ -622,6 +622,49 @@ vinelecie — do rozwazenia w kolejnej rundzie balansu (nie blokuje merge, krok 
 
 **Nastepny krok: merge (krok 3/5), planowanie z Andreasem.**
 
+### Cleanup runda: Strażnik Bootstrapu, Galaxeon 4.0, Shardmaw fix (2026-08-18)
+
+**Strażnik Bootstrapu** (`Bootstrap.server.luau`, commit `dbb6b49`): asercja na starcie porownujaca
+`ORDER` z faktycznie obecnymi modulami w `Services` (w obie strony) — rzuca glosny `error()` z
+nazwa serwisu przy desyncu. Szczepionka na klase bledu "serwis cicho wypadl z ORDER" (dokladnie to
+co spotkalo `DeckService` przy MAX-SLOT, patrz sekcja Vinelet powyzej) — teraz krzyczy przy starcie
+zamiast chowac sie jako ciche `NoProfile`.
+
+**Galaxeon 3.5->4.0**: ablacja "Nowe Stworki" (patrz wyzej) juz udowodnila 0 wplywu na FULL-SMART
+przy n=50 (zjazd 4.0->1.0 = identyczny wynik, 58%==58%) — niekauzalny w tym decku. Podbicie do 4.0
+to darmowy upgrade feelu Legendary, zero ryzyka balansowego, bramka nie wymaga osobnego pomiaru tej
+zmiany.
+
+**Shardmaw fix**: byl LICZBOWO ROWNY blobby (Common) — oba `scalingFlat{stat=moc}`,
+`condition=always`, `perTrigger=12`; Epic remisujacy z Common (ten sam wzorzec co Vinelet, patrz
+wyzej). Przeniesiony na warunkowy `mocMult=2.0` przy `playedCountAtLeast(5)` (pelna reka, wzor
+Emberwing/Thunderwolf — Epic to tier multiplikatywny), motyw "odlamki krysztalu pekaja gdy reka
+pelna" — odrebna nisza od Thunderwolf/Emberwing (prog 4). NIE poszedl w dalszy `scalingFlat`
+(nisza zajeta przez Vinelet/Lavacat, bezwarunkowe skalowanie = udowodniony winowajca overshootu) ani
+w bezwarunkowy `rez` (jw.). `mocMult=2.0` to **PLACEHOLDER** — wartosc nie zostala dostrojona
+bramka (patrz PENDING nizej), do potwierdzenia/dostrojenia gdy Studio wroci.
+
+**Przy okazji zlapany i naprawiony trzeci desync Studio** tej samej klasy: live `Net.luau` (Framework)
+nie mial `GetDeck`/`SetDeck` w tabeli `REMOTES`, mimo ze na dysku sa od commitu MAX-SLOT —
+`DeckService.Start()` failowal cicho na `Net: unknown remote 'GetDeck'`, wiec SetDeck/GetDeck
+realnie nie dzialaly. Naprawiony recznym `set_script_source` na `Net.luau` + restart playtestu,
+zweryfikowany w logach (18/18 serwisow startuje bez FAILED). **Trzeci raz ten sam blad — brak
+`project.json` = kazda zmiana configu/remote'ow trzeba weryfikowac w live Studio recznie, disk != Studio.**
+
+**Bramka: PENDING.** Po naprawie Net.luau most/Studio dzialaly (server bootuje czysto, gracz
+dolacza, kontrolery klienta startuja), ale realna bramka produkcyjna (`runDeckGate`, deck=10 nowych
+totemow z Shardmaw+Galaxeon, n=50) zablokowana przez zawieszony `ProfileStore` session-lock —
+`StartSessionAsync` dla testowego profilu (UserId testera, `SessionLoadCount` narosl do 51-52 od
+wielokrotnego testowania w tej sesji) nie konczyl sie mimo wielu minut oczekiwania i recznego
+zwolnienia locka (`MetaData.ActiveSession` wyzerowany przez `UpdateAsync`, restart playtestu) — dwie
+proby z osobnymi restartami, obie utkniete. To infrastrukturalny problem Studio/DataStore (albo
+wyczerpany budzet requestow po serii recznych testow), NIEZWIAZANY z sama zmiana balansu. Zgodnie z
+zasada "uczciwy PENDING > zmyslony PASS": **NIE odpalono bramki, kod+commit poszly bez niej.**
+Kod (Shardmaw+Galaxeon) jest gotowy i skomitowany — do przetestowania nastepnym razem gdy Studio
+sesja bedzie czysta (swiezy playtest bez nagromadzonych sesji z tej rozmowy). Jesli FULL-SMART
+wypadnie poza 30-55%, dostroic `mocMult` Shardmawa (obecnie placeholder 2.0) przez ablacje w VM,
+tak jak przy poprzednich rundach.
+
 ## Faza 5 — redesign wizualny (jeszcze nie rozpoczety, PO calej przedpremierowej ekspansji)
 
 Ostatnia faza przed soft launchem. Cala gra dzis to "brzydko-ale-dzialajaco" — kolorowe bloki

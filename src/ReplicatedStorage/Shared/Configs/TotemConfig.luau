@@ -321,16 +321,29 @@ TotemConfig.Totems = {
 		effect = { mocMultElement = { element = "Fire", factor = 3.5 } },
 	} :: TotemDef,
 
+	-- Fix (2026-08-18): scalingFlat{moc,12} unconditional byl LICZBOWO ROWNY blobby (Common) -- ten
+	-- sam wzorzec co Vinelet powyzej (bezwarunkowe skalowanie = winowajca overshootu, patrz komentarz
+	-- "Nowe Stworki"). Przeniesiony na warunkowy mocMult (wzor Emberwing/Thunderwolf -- Epic to tier
+	-- MULTIPLIKATYWNY), NIE dalszy scalingFlat -- rez zajety przez Vinelet/Lavacat, moc-scalingFlat
+	-- to dokladnie ta nisza co spowodowala przestrzal. playedCountAtLeast(5) = pelna reka
+	-- (GameConfig.MaxPlaySize=5), ostrzejszy prog niz Thunderwolf/Emberwing (4) -- temat "odlamki
+	-- krysztalu pekaja gdy reka pelna", odrebna nisza "finiszera" zamiast duplikowac ich trigger.
+	-- mocMult=2.0 to PLACEHOLDER -- bramka (n=50, deck z tymi 10 totemami) jest PENDING, zablokowana
+	-- przez zawieszony ProfileStore session-lock w Studio (patrz STATUS.md "Shardmaw fix"). Odpalic
+	-- bramke gdy Studio wroci i dostroic wartosc jesli FULL-SMART wypadnie poza 30-55%.
 	shardmaw = {
 		id = "shardmaw",
 		name = "Shardmaw",
 		tier = "Epic",
 		phase = "onScore",
-		condition = "always",
-		conditionArg = nil,
-		effect = { scalingFlat = { stat = "moc", perTrigger = 12 } },
+		condition = "playedCountAtLeast",
+		conditionArg = 5,
+		effect = { mocMult = 2.0 },
 	} :: TotemDef,
 
+	-- Galaxeon 3.5->4.0 (2026-08-18): ablacja "Nowe Stworki" udowodnila 0 wplywu na FULL-SMART przy
+	-- n=50 (zjazd 4.0->1.0 = identyczny wynik) -- niekauzalny w tym decku, wiec podbicie feelu
+	-- Legendary bez ryzyka balansowego, bramka nie wymaga ponownego pomiaru tej zmiany osobno.
 	galaxeon = {
 		id = "galaxeon",
 		name = "Galaxeon",
@@ -338,7 +351,7 @@ TotemConfig.Totems = {
 		phase = "onScore",
 		condition = "spellIs",
 		conditionArg = "Konwergencja",
-		effect = { mocMult = 3.5 },
+		effect = { mocMult = 4.0 },
 	} :: TotemDef,
 }
 
