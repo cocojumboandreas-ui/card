@@ -48,6 +48,10 @@ local REMOTES: { [string]: string } = {
 	-- Faza 4 Krok 5: FTUE
 	FtueSync = "RemoteEvent", -- S->C {ftueDone:boolean} — push raz po ProfileLoaded (FtueService)
 	MarkFtueDone = "RemoteEvent", -- C->S () — klient (FTUEController) sygnalizuje koniec sekwencji onboardingu; serwer ustawia profile.ftueDone=true (idempotent, fire-and-forget)
+
+	-- MAX-SLOT: wybór aktywnej puli totemów (DeckService)
+	GetDeck = "RemoteFunction", -- C->S () -> {ok, deck:{totemId}, deckSize, entries:{{id,name,tier,selectable,inDeck}}}
+	SetDeck = "RemoteFunction", -- C->S (ids:{totemId}) -> {ok, reason?}
 }
 
 local Net = {}

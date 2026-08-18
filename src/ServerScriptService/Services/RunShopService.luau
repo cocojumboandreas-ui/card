@@ -22,6 +22,7 @@ local Net = require(Framework:WaitForChild("Net"))
 local RunSessionService = require(script.Parent.RunSessionService)
 type RunState = RunSessionService.RunState
 local IndexService = require(script.Parent.IndexService) -- IsDiscovered = "posiadane" (profile.totems), Start() ordered przed nami w Bootstrap
+local DeckService = require(script.Parent.DeckService) -- MAX-SLOT: GetDeck(player) = pula wybrana przez gracza, Start() ordered przed nami w Bootstrap
 
 local RunShopService = {}
 
@@ -70,12 +71,26 @@ local function availableTotemPool(run: RunState): { any }
 		excluded[t.id] = true
 	end
 
+	-- MAX-SLOT: deck ogranicza pulę do <=GameConfig.DeckSize totemów. run.owner==nil (anonimowe
+	-- runy — BalanceHarness, testy) nie ma profilu -> deckIds pozostaje nil -> brak dodatkowego
+	-- filtra, zachowanie identyczne jak PRZED MAX-SLOT (starter-only, bo isOwned zawsze false bez
+	-- ownera) -- D1 bramka nie wymaga przeliczenia.
+	local deckIds = run.owner ~= nil and DeckService.GetDeck(run.owner) or nil
+	local inDeck = nil
+	if deckIds then
+		inDeck = {}
+		for _, id in deckIds do
+			inDeck[id] = true
+		end
+	end
+
 	local pool = {}
 	for id, totem in TotemConfig.Totems do
 		if not excluded[id] then
 			local isStarter = totem.tier == STARTER_TIER
 			local isOwned = run.owner ~= nil and IndexService.IsDiscovered(run.owner, id)
-			if isStarter or isOwned then
+			local selectable = isStarter or isOwned
+			if selectable and (inDeck == nil or inDeck[id]) then
 				table.insert(pool, totem)
 			end
 		end

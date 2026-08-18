@@ -1,14 +1,18 @@
 # STATUS — Roll a Rune
 
-Ostatnia aktualizacja: 2026-08-18, koniec sesji Faza 4 (monetyzacja, w pelni zamknieta
-compliance-safe). Czytaj to + `git log` zamiast polegac na pamieci poprzedniej sesji.
+Ostatnia aktualizacja: 2026-08-18, koniec sesji MAX-SLOT (krok 1/5 przedpremierowej
+ekspansji, bramka balansu PASS). Czytaj to + `git log` zamiast polegac na pamieci poprzedniej
+sesji.
 
 ## Gdzie jestesmy (skrot dla nastepnej sesji)
 
-**Fazy 1-4 zrobione. Gra jest funkcjonalnie kompletna** (rdzen deckbuildera, kolekcja/roll,
-retencja D1/D7, monetyzacja Robux) **i zgodna z polityka Roblox Paid Random Items.**
-Nastepny krok to **Faza 5 — redesign wizualny** (patrz sekcja na samym dole pliku) — ostatnia
-faza przed soft launchem. Wszystko ponizej to historia/dowody, nie rzeczy do zrobienia teraz.
+**Fazy 1-4 zrobione, MAX-SLOT zamkniety.** Gra jest funkcjonalnie kompletna (rdzen
+deckbuildera, kolekcja/roll, retencja D1/D7, monetyzacja Robux, deck-limit 10 kart) i zgodna
+z polityka Roblox Paid Random Items. W toku jest **przedpremierowa ekspansja, kolejnosc
+sztywna: MAX-SLOT (zrobione) -> nowe Stworki + balans -> merge -> packi+daily+luck ->
+UI+juice**, a dopiero PO niej **Faza 5 — redesign wizualny** (patrz sekcja na samym dole
+pliku). Nastepny krok do zaplanowania z Andreasem: nowe Stworki + balans. Wszystko ponizej to
+historia/dowody, nie rzeczy do zrobienia teraz.
 
 ## Dyscyplina wywolan MCP (obowiazuje od 2026-08-17)
 
@@ -505,7 +509,35 @@ gate'u zakupu (`LuckX2`) nadal dziala — `confirmBtnVisible=true`, "Anuluj".
   zrzuty byly landscape/Studio-viewport) — do zrobienia gdy bedzie realny powod (np. przy
   Fazie 5 review mobile-first designu).
 
-## Faza 5 — redesign wizualny (NASTEPNY KROK, jeszcze nie rozpoczety)
+## MAX-SLOT — ZAMKNIETY, bramka balansu PASS (2026-08-18)
+
+Krok 1 z 5-etapowej przedpremierowej ekspansji (kolejnosc: **MAX-SLOT -> nowe Stworki +
+balans -> merge -> packi+daily+luck -> UI+juice**). Gracz ograniczony do decka max
+`GameConfig.DeckSize` (10) totemow zamiast calej kolekcji — `DeckService` (nowy plik) +
+`Net` remote'y deck + `RunShopService.availableTotemPool` filtrowane przez
+`DeckService.GetDeck(player)` (tylko tryb `free`; ranked strukturalnie izolowany, nigdy nie
+dotyka `DeckService`). UI: `DeckController` + przycisk w HUD + wpiety w `UIRootController`/
+`Bootstrap` ORDER.
+
+**Bramka balansu** (`tests/BalanceHarness.studio.luau`, funkcja `runDeckGate`, dopisana ta
+sesja) — realistyczny mieszany 10-kartowy deck (3 Common + 3 Uncommon + 2 Rare + 1 Epic + 1
+Legendary, `DECK_IDS` w pliku), n=50 seedow, przez PRAWDZIWA sciezke produkcyjna
+(`RunSessionService.startRunForPlayer` -> `RunShopService` -> `DeckService`, monkeypatch
+`IndexService.IsDiscovered` zamiast osobnej symulacji). Uruchomione live w solo-playteście
+(`eval_server_runtime`, gracz `Onimushaa5`, real profile):
+
+| Bot | Completion | Uwagi |
+|---|---|---|
+| NAIVE (podloga) | 2% (1/50) | oczekiwane nisko, to nie jest sygnal do dostrajania |
+| FULL-SMART (proxy czlowieka) | **42% (21/50)** | w wymaganym pasmie 30-55% -> **PASS bez dostrajania** |
+
+Widelki historyczne dla porownania: pool=7 (starter-only) FULL-SMART 30%, pool=15 (cala
+kolekcja, bez filtra decka) FULL-SMART 54%. Deck=10 mieszany wypada w srodku (42%), zgodnie z
+oczekiwaniem — mniejszy/gorszy niz pelna kolekcja, wiekszy/lepszy niz sam starter.
+
+**Nastepny krok: Faza "nowe Stworki + balans" (krok 2/5), planowanie z Andreasem.**
+
+## Faza 5 — redesign wizualny (jeszcze nie rozpoczety, PO calej przedpremierowej ekspansji)
 
 Ostatnia faza przed soft launchem. Cala gra dzis to "brzydko-ale-dzialajaco" — kolorowe bloki
 z `UIFactory`, zero prawdziwego designu. Faza 5 to cukierkowy redesign wszystkich ekranow.

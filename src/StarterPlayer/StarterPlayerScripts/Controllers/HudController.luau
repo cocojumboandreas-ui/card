@@ -14,6 +14,7 @@ local UIRootController = require(script.Parent.UIRootController)
 local NetController = require(script.Parent.NetController)
 local RollRevealController = require(script.Parent.RollRevealController)
 local IndexController = require(script.Parent.IndexController)
+local DeckController = require(script.Parent.DeckController)
 local MonetizationController = require(script.Parent.MonetizationController)
 
 local HudController = {}
@@ -50,6 +51,14 @@ function HudController.Start()
 		BackgroundColor3 = Color3.fromRGB(255, 196, 61),
 	})
 	_essenceLabel = UIFactory.label(essenceBar, "Essence: 0", { TextColor3 = Color3.fromRGB(40, 30, 0) })
+
+	UIFactory.button(gui, "Talia", {
+		Size = UDim2.new(0, 70, 0, 50),
+		Position = UDim2.new(1, -316, 0, 12),
+		BackgroundColor3 = Color3.fromRGB(120, 90, 190),
+	}, function()
+		DeckController.Open()
+	end)
 
 	UIFactory.button(gui, "Indeks", {
 		Size = UDim2.new(0, 70, 0, 50),

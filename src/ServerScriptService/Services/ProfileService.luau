@@ -24,6 +24,10 @@ local STORE_NAME = "RollARuneProfile_v1"
 local PROFILE_TEMPLATE = {
 	essence = 0,
 	totems = {}, -- ["totemId#variant"] = count (Faza 2b: kolekcja, IndexService)
+	activeDeck = {}, -- MAX-SLOT: lista totemId (max GameConfig.DeckSize) zasilająca RunShopService.availableTotemPool;
+	-- pusta = "jeszcze nie wybrana", DeckService.EnsureDefaultDeck wypełnia domyślnie przy pierwszym użyciu
+	-- (migracja istniejących graczy: Reconcile() dopisuje pusty {}, a "pusty -> uzupełnij domyślnym" jest
+	-- trwałym niezmiennikiem, nie jednorazową flagą)
 	indexClaims = {}, -- claimed luck thresholds (Faza 2b)
 	guardiansSeen = {}, -- bestiariusz Strażników
 	skills = {}, -- [skillId] = rank (Faza 2b: SkillTreeService)

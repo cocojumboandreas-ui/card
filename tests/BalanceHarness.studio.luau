@@ -52,10 +52,23 @@
 --
 -- Faza 3 final validated result (thresholdWarden.thresholdMult = 1.5, n=50): naive 18%, full-smart
 -- 54% (target band 30-55%), enc12 median ratio 1.11 (target band 1.0-1.3). Gate met.
+--
+-- MAX-SLOT deck gate (owner ~= nil path): the two measured extremes above are pool=7 (starter-only,
+-- anonymous run.owner=nil, FULL-SMART 30%) and pool=15 (full old collection, no deck filter yet,
+-- FULL-SMART 54%). Neither is what a real player experiences post-MAX-SLOT: they play with exactly
+-- GameConfig.DeckSize (10) totems they chose themselves, spanning tiers, not starter-only and not
+-- the whole collection. runDeckGate (bottom of this file) exercises that real shape end-to-end
+-- through the ACTUAL production path (RunSessionService.startRunForPlayer -> run.owner=player ->
+-- RunShopService.availableTotemPool -> DeckService.GetDeck(player) -> DeckService.EnsureDefaultDeck)
+-- by monkey-patching IndexService.IsDiscovered on a real solo-playtest player so the "owned" set is
+-- exactly DECK_IDS below -- see runDeckGate's own header comment for why that's a legitimate use of
+-- production code paths and not a separate simulated deck.
 
 local RunSessionService = require(game.ServerScriptService.Services.RunSessionService)
 local RunShopService = require(game.ServerScriptService.Services.RunShopService)
 local PlayService = require(game.ServerScriptService.Services.PlayService)
+local ProfileService = require(game.ServerScriptService.Services.ProfileService)
+local IndexServiceModule = require(game.ServerScriptService.Services.IndexService)
 local HandEvaluator = require(game.ReplicatedStorage.Shared.HandEvaluator)
 local ScoreEngine = require(game.ReplicatedStorage.Shared.ScoreEngine)
 local GameConfig = require(game.ReplicatedStorage.Shared.Configs.GameConfig)
@@ -203,10 +216,23 @@ local function shopVisit(run, humanLike)
 	end
 end
 
--- opts: { useSwaps: boolean?, useScrolls: boolean? } -- both false/nil for the naive bot.
+-- opts: { useSwaps: boolean?, useScrolls: boolean?, player: Player?, mode: string? } -- player/mode
+-- both nil for the original anonymous-run gates (byte-identical to pre-MAX-SLOT behavior, see
+-- RunShopService.availableTotemPool's owner==nil branch). Pass opts.player for the MAX-SLOT deck
+-- gate -- routes through startRunForPlayer so run.owner is set and DeckService actually gates the
+-- pool, AND resolves the real start-of-run pick (a real player always resolves this before playing;
+-- skipping it would silently deny the bot the free starting totem a human always gets).
 local function simulateRun(seed, pickIndicesFn, opts)
 	opts = opts or {}
-	local run = RunSessionService.startRun(seed, "seedtest_" .. tostring(seed))
+	local run
+	if opts.player then
+		run = RunSessionService.startRunForPlayer(opts.player, seed, opts.mode or "free")
+		if not run.startPickDone and run.startPickOptions and #run.startPickOptions > 0 then
+			RunShopService.choosePick(run, run.startPickOptions[1].id)
+		end
+	else
+		run = RunSessionService.startRun(seed, "seedtest_" .. tostring(seed))
+	end
 	local history = {}
 	local lossEncounter = nil
 	local completed = false
@@ -330,10 +356,65 @@ local function runBatch(pickIndicesFn, opts, label, n)
 	return completedCount
 end
 
+-- MAX-SLOT: a realistic mixed-tier 10-card deck (== GameConfig.DeckSize), the shape a player who
+-- picked their favorites out of the full 15-totem collection would actually build -- NOT
+-- starter-only (that's the already-measured pool=7 point) and NOT the whole collection (pool=15).
+-- 3 Common + 3 Uncommon + 2 Rare + 1 Epic + 1 Legendary; deliberately excludes 4 Commons and 1 Epic
+-- to look like a curated deck, not "everything up to the cap alphabetically".
+local DECK_IDS = {
+	"capybop", "lotti", "emberpup", -- Common
+	"pixiespark", "drakelet", "coinpurr", -- Uncommon
+	"frostfawn", "merlynx", -- Rare
+	"thunderwolf", -- Epic
+	"kingosaur", -- Legendary
+}
+
+-- Runs the naive+full-smart batches through the REAL production deck path (see file header "MAX-
+-- SLOT deck gate") on `player`, a real Player from an active solo playtest (must have a loaded
+-- profile). Monkey-patches IndexService.IsDiscovered for the duration so "owned" == exactly
+-- `deckIds`, forces profile.activeDeck empty so DeckService.EnsureDefaultDeck freshly populates it
+-- from that patched ownership (real migration code, not simulated) -- always restores the original
+-- IndexService.IsDiscovered afterward, even on error. profile.activeDeck itself is NOT restored:
+-- same tolerated live-test side effect as every other real-player gate in this project (STATUS.md
+-- "Efekt uboczny live-testow").
+local function runDeckGate(player, deckIds, n)
+	deckIds = deckIds or DECK_IDS
+	local data = ProfileService.GetProfile(player)
+	assert(data, "runDeckGate: player has no loaded profile -- must be a real solo-playtest player")
+
+	local deckSet = {}
+	for _, id in deckIds do
+		deckSet[id] = true
+	end
+
+	local originalIsDiscovered = IndexServiceModule.IsDiscovered
+	IndexServiceModule.IsDiscovered = function(_player, totemId)
+		return deckSet[totemId] == true
+	end
+	data.activeDeck = {}
+
+	local ok, err = pcall(function()
+		runBatch(naivePlayIndices, { player = player, mode = "free" }, "NAIVE (floor), MAX-SLOT deck=10 mixed", n)
+		data.activeDeck = {} -- reset so the FULL-SMART batch's first seed also re-derives the same default deck from scratch
+		runBatch(smartPlayIndices, { player = player, mode = "free", useSwaps = true, useScrolls = true }, "FULL-SMART (human proxy), MAX-SLOT deck=10 mixed", n)
+	end)
+
+	IndexServiceModule.IsDiscovered = originalIsDiscovered
+
+	if not ok then
+		error(err)
+	end
+end
+
 -- Standard invocation: always report naive (floor) vs full-smart (human proxy) side by side.
 -- Prefer n=50 when a config change is near a target boundary (see header note on n=25 noise).
 -- runBatch(naivePlayIndices, {}, "NAIVE (floor), 5-slot", 50)
 -- runBatch(smartPlayIndices, {useSwaps = true, useScrolls = true}, "FULL-SMART (human proxy), 5-slot", 50)
+
+-- MAX-SLOT deck gate invocation: same paste-and-uncomment pattern as above -- this file's whole
+-- content goes into execute_luau/eval_server_runtime (target="server") in an active solo playtest;
+-- uncomment the line below (add it before the final `return`) to run it in that same paste:
+-- runDeckGate(game.Players:GetPlayers()[1], nil, 50) -- nil = use the built-in DECK_IDS (10, mixed tiers)
 
 return {
 	shopVisit = shopVisit,
@@ -343,4 +424,6 @@ return {
 	applyScrollStrategically = applyScrollStrategically,
 	simulateRun = simulateRun,
 	runBatch = runBatch,
+	runDeckGate = runDeckGate,
+	DECK_IDS = DECK_IDS,
 }

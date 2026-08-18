@@ -25,6 +25,7 @@ local ORDER = {
 	"FtueService", -- Faza 4 Krok 5: push/odbior flagi ftueDone, zależy tylko od Profile
 	"OfflineEarnService", -- Faza 3: zależy tylko od Profile/Stat/Economy, zero zależności od runu
 	"IndexService",
+	"DeckService", -- MAX-SLOT: GetDeck/SetDeck, zależy tylko na odczyt (get) ProfileService/IndexService, wymagany PRZED RunShopService
 	"RollService",
 	"SeedService", -- Faza 3: czysta funkcja, zero zależności; PRZED RunSessionService (użyty w startRun)
 	"RunSessionService",
