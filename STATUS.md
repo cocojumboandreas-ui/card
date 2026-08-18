@@ -1,8 +1,8 @@
 # STATUS — Roll a Rune
 
-Ostatnia aktualizacja: 2026-08-18, koniec sesji "nowe Stworki + balans" (krok 2/5
-przedpremierowej ekspansji, bramka balansu PASS). Czytaj to + `git log` zamiast polegac na
-pamieci poprzedniej sesji.
+Ostatnia aktualizacja: 2026-08-18, Blok 1-3 (MAX-SLOT + nowe Stworki + balans + cleanup) w pelni
+zamkniety, bramka Shardmaw/Galaxeon PASS (44%, po naprawie crowd-out buga w harnessu). Czytaj to
++ `git log` zamiast polegac na pamieci poprzedniej sesji.
 
 ## Gdzie jestesmy (skrot dla nastepnej sesji)
 
@@ -664,6 +664,49 @@ Kod (Shardmaw+Galaxeon) jest gotowy i skomitowany — do przetestowania nastepny
 sesja bedzie czysta (swiezy playtest bez nagromadzonych sesji z tej rozmowy). Jesli FULL-SMART
 wypadnie poza 30-55%, dostroic `mocMult` Shardmawa (obecnie placeholder 2.0) przez ablacje w VM,
 tak jak przy poprzednich rundach.
+
+### Gate PASS po naprawie harnessu (2026-08-18)
+
+Swiezy `solo_playtest` (poprzedni byl `running:false`, zero nagromadzonych sesji) rozwiazal
+PENDING powyzej od razu — `ProfileService.IsLoaded` zwrocil `true` bez zawieszenia. To potwierdza,
+ze lock byl artefaktem infrastruktury/nagromadzonych testow w poprzedniej dlugiej sesji, nie
+bledem kodu.
+
+**Po drodze zlapany i naprawiony czwarty desync tej samej klasy, tym razem w samym harnessie:**
+pierwsza probka bramki dala smieciowy wynik (8% NAIVE / 4% FULL-SMART, docelowe totemy —
+shardmaw/vinelet/sparkfly/tidalox — na 0% pick share). Root cause: `DeckService.isSelectable()`
+ma bezwarunkowy wczesny return `if totem.tier == STARTER_TIER then return true end` (Common =
+zawsze wybieralny, celowo — nowy gracz zawsze ma starterowe Commony). `BalanceHarness.studio.luau`
+zerowal `data.activeDeck = {}` przed pomiarem, co budzi `EnsureDefaultDeck`'s regenerate-when-empty
+sciezke (`defaultDeck()`, alfabetyczne ciecie do `DeckSize=10`) — a odkad roster urosl do 10
+Commonow (z "Nowe Stworki"), te 10 Commonow samo wypelnia caly limit deckow, wypychajac docelowe
+totemy z `deckIds` zanim monkeypatch `IsDiscovered` w ogole zostanie sprawdzony dla tych slotow.
+Ten sam wzorzec co Vinelet/Shardmaw ("bezwarunkowe zachowanie ktore ignoruje kontekst testu"), tym
+razem w test-harnessie a nie w konfigu totemow. **Wbudowany "HARNESS SANITY CHECK" tego NIE zlapal**
+(sprawdza tylko >50% strat na 1. starciu / zero zakupionych totemow — nie sprawdza czy deck sie
+zgadza z `deckIds`) — luka do zapamietania na przyszle bramki.
+
+Fix: `data.activeDeck` ustawiane BEZPOSREDNIO na `table.clone(deckIds)` (juz niepuste, dlugosc
+= `DeckSize`) zamiast `{}` — `EnsureDefaultDeck`'s regenerate-branch nigdy sie nie odpala, deck
+zostaje dokladnie taki jak zadal `deckIds`. Naprawione trwale w `tests/BalanceHarness.studio.luau`
+(nie tylko w inline-copy), bo ten sam bug zepsulby tez nadchodzaca bramke merge.
+
+**Wynik po naprawie (n=50, deck=10 totemow Shardmaw+Galaxeon):**
+- NAIVE (floor bot): **10%** (5/50)
+- **FULL-SMART (human-proxy): 44% (22/50)** — w widelkach 30-55%, **PASS**
+- Pick share potwierdzony poprawny (tylko 10 totemow z `deckIds` ma niezerowy udzial): boltpup
+  68/64%, emberwing 58/60%, frostnib 56/58%, galaxeon 14/20%, pebblit 44/42%, puffcap 64/60%,
+  **shardmaw 44/50%** (uzywany, nie martwy), sparkfly 50/48%, tidalox 48/48%, vinelet 54/50%.
+
+**Blok 1-3 (MAX-SLOT + Nowe Stworki + balans + cleanup) jest tym samym w pelni zamkniety:**
+Vinelet fix (`3a02a8e`, PASS 50%), Straznik Bootstrapu (`dbb6b49`), Galaxeon 4.0 + Shardmaw fix
+(`6e23316`, teraz PASS 44% zamiast PENDING) — wszystkie trzy zacommitowane i wypchniete na
+`origin/main` przed ta runda; ta runda domyka bramke i dodaje commit z naprawa harnessu +
+aktualizacja komentarza Shardmawa + ten wpis.
+
+**Nastepny krok: merge (krok 3/5)** — plan implementacyjny rdzenia (Common->Uncommon->Rare, prog
+5, essence 50/150, wynik plaski, disenchant Rare @30, collectionScoped) do przedstawienia Andreasowi
+PRZED kodem.
 
 ## Faza 5 — redesign wizualny (jeszcze nie rozpoczety, PO calej przedpremierowej ekspansji)
 

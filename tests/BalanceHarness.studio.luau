@@ -391,11 +391,21 @@ local function runDeckGate(player, deckIds, n)
 	IndexServiceModule.IsDiscovered = function(_player, totemId)
 		return deckSet[totemId] == true
 	end
-	data.activeDeck = {}
 
+	-- BUG FOUND LIVE (2026-08-18, Shardmaw/Galaxeon gate): setting activeDeck={} here used to let
+	-- EnsureDefaultDeck's regenerate-when-empty path rebuild the deck from scratch via defaultDeck()
+	-- -- but DeckService.isSelectable() auto-includes EVERY Common totem as "starter" regardless of
+	-- the IsDiscovered patch above (by design, real players always have all Commons selectable).
+	-- Once the roster grew to 10 Common totems, that auto-set alone already fills DeckSize=10
+	-- alphabetically, silently crowding out any non-Common id from deckIds (e.g. shardmaw, an Epic)
+	-- before the patch ever gets consulted -- produced a garbage ~8% completion with the target
+	-- totems at 0% pick share, not a real balance reading. Fix: assign activeDeck DIRECTLY to
+	-- deckIds (already exactly #deckIds long, never empty) so EnsureDefaultDeck's regenerate branch
+	-- never fires and the deck stays exactly what the caller asked for.
 	local ok, err = pcall(function()
+		data.activeDeck = table.clone(deckIds)
 		runBatch(naivePlayIndices, { player = player, mode = "free" }, "NAIVE (floor), MAX-SLOT deck=10 mixed", n)
-		data.activeDeck = {} -- reset so the FULL-SMART batch's first seed also re-derives the same default deck from scratch
+		data.activeDeck = table.clone(deckIds)
 		runBatch(smartPlayIndices, { player = player, mode = "free", useSwaps = true, useScrolls = true }, "FULL-SMART (human proxy), MAX-SLOT deck=10 mixed", n)
 	end)
 

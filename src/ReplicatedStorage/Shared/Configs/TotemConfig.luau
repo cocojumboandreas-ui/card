@@ -328,9 +328,10 @@ TotemConfig.Totems = {
 	-- to dokladnie ta nisza co spowodowala przestrzal. playedCountAtLeast(5) = pelna reka
 	-- (GameConfig.MaxPlaySize=5), ostrzejszy prog niz Thunderwolf/Emberwing (4) -- temat "odlamki
 	-- krysztalu pekaja gdy reka pelna", odrebna nisza "finiszera" zamiast duplikowac ich trigger.
-	-- mocMult=2.0 to PLACEHOLDER -- bramka (n=50, deck z tymi 10 totemami) jest PENDING, zablokowana
-	-- przez zawieszony ProfileStore session-lock w Studio (patrz STATUS.md "Shardmaw fix"). Odpalic
-	-- bramke gdy Studio wroci i dostroic wartosc jesli FULL-SMART wypadnie poza 30-55%.
+	-- mocMult=2.0 zwalidowane bramka (2026-08-18, n=50, deck z tymi 10 totemami, PO naprawie
+	-- crowd-out buga w BalanceHarness.studio.luau -- patrz STATUS.md "Gate PASS po naprawie
+	-- harnessu"): FULL-SMART 44% (widelki 30-55%), PASS. Shardmaw pick share 44-50%, uzywany, nie
+	-- martwy.
 	shardmaw = {
 		id = "shardmaw",
 		name = "Shardmaw",
