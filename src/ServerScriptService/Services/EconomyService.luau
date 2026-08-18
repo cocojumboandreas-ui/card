@@ -42,6 +42,19 @@ function EconomyService.AwardEssence(player, amount: number, reason: string?): n
 	return gained
 end
 
+-- amount BEZ Stats.essenceMult — dla konwersji po stałym kursie (np. MergeService.Disenchant), nie
+-- "nagroda". Gracz z essenceMult z gamepassa nie ma dostawać więcej essence za tę samą kartę, inaczej
+-- disenchant przestaje być jednakowo stratnym sinkiem dla płacących i niepłacących.
+function EconomyService.AwardEssenceFlat(player, amount: number): number
+	local data = _profile and _profile.GetProfile(player)
+	if not data then
+		return 0
+	end
+	data.essence += amount
+	pushBalance(player, data.essence)
+	return amount
+end
+
 function EconomyService.TrySpendEssence(player, amount: number): boolean
 	local data = _profile and _profile.GetProfile(player)
 	if not data or data.essence < amount then

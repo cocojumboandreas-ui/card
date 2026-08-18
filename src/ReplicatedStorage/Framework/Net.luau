@@ -52,6 +52,11 @@ local REMOTES: { [string]: string } = {
 	-- MAX-SLOT: wybór aktywnej puli totemów (DeckService)
 	GetDeck = "RemoteFunction", -- C->S () -> {ok, deck:{totemId}, deckSize, entries:{{id,name,tier,selectable,inDeck}}}
 	SetDeck = "RemoteFunction", -- C->S (ids:{totemId}) -> {ok, reason?}
+
+	-- System 3: Merge/Craft (MergeService)
+	GetMergeState = "RemoteFunction", -- C->S () -> {ok, mergeable:{{id,name,tier,count,cost,eligible}}, disenchantable:{{id,variant,name,count,value}}}
+	MergeTotem = "RemoteFunction", -- C->S (totemId:string) -> {ok, resultTotemId?, resultTier?, resultVariant?, isNewDiscovery?, essence?, reason?}
+	DisenchantTotem = "RemoteFunction", -- C->S (totemId:string, variant:string) -> {ok, essence?, reason?}
 }
 
 local Net = {}

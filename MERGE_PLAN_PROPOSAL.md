@@ -293,3 +293,101 @@ ekspozycję w UI.
    zdewaluować rollowania") — flaguję to jako miejsce, które przy realnych danych z bramki może
    wymagać osobnej rozmowy (np. czy Foile w ogóle powinny iść przez ten sam merge co Normal, czy
    potrzebują własnego, mniej losowego sinku — poza zakresem dzisiejszych 5 decyzji).
+
+---
+
+## 8. PLAN IMPLEMENTACYJNY RDZENIA (2026-08-18) — do zatwierdzenia PRZED kodem
+
+Zakres zatwierdzony przez Andreasa: Common→Uncommon→Rare, próg 5, essence 50/150, wynik płaski,
+disenchant Rare @30, collectionScoped, idempotencja jak `ProcessReceipt`. Foil-merge i sink
+Epic/Legendary — ODŁOŻONE, nie budowane teraz.
+
+**Konsekwencja wprost z cięcia scope:** skoro Foil-merge jest odłożony ("foile dropią normalnie,
+tylko niemerdżowalne na launch"), merge (5→1) operuje WYŁĄCZNIE na wariancie `Normal`
+(`totemId#Normal`). Foil/Gold/Galaxy/Rainbow/Void duplikaty Common/Uncommon nie są w ogóle
+zgłaszane jako mergowalne w V1 — to nie jest nowa decyzja, tylko bezpośrednia konsekwencja
+zatwierdzonego cięcia. Disenchant Rare (punkt E) jest INNY mechanizm i celowo NIE ogranicza się do
+Normal — każda kopia Rare ponad pierwszą, niezależnie od wariantu, disenchantuje się za 30 (już
+uzasadnione w punkcie E: dotarcie do duplikatu Rare+Foil jest już samo w sobie ekstremalnie
+rzadkie).
+
+### Pliki
+
+**Nowe:**
+
+1. `src/ReplicatedStorage/Shared/Configs/MergeConfig.luau` — dane (zero-magic-numbers, wzorzec
+   `GameConfig`/`RarityConfig`): `Threshold.Normal=5`, `EssenceCost={Common=50,Uncommon=150}`,
+   `NextTier={Common="Uncommon",Uncommon="Rare"}` (brak klucza = tier nie mergowalny, naturalny cap
+   na Rare bez osobnej flagi), `DisenchantTier="Rare"`, `DisenchantValueEssence=30`.
+2. `src/ServerScriptService/Services/MergeService.luau` — logika: `Merge(player, totemId)`,
+   `Disenchant(player, totemId, variant)`, `GetMergeState(player)`. Wzorzec 1:1 z `RollService`
+   (selectTotem-style płaski pick wśród totemów `tier==resultTier`) i `RunShopService.buy`/
+   `PurchaseService.ProcessReceipt` (walidacja+mutacja w JEDNYM synchronicznym wywołaniu serwera —
+   zero remote round-tripów między "sprawdź 5" a "skonsumuj 5", więc podwójny klik/race nie może
+   spalić kart bez wyniku, dokładnie ten kontrakt idempotencji co przy zakupach).
+
+**Edytowane:**
+
+3. `src/ReplicatedStorage/Framework/Net.luau` — 3 nowe remoty w `REMOTES`:
+   - `GetMergeState` (RF) C→S () → `{ok, mergeable:{{id,name,tier,count,cost,eligible}}, disenchantable:{{id,variant,name,count,value}}}`
+   - `MergeTotem` (RF) C→S `(totemId:string)` → `{ok, resultTotemId?, resultTier?, resultVariant?, isNewDiscovery?, essence?, reason?}`
+   - `DisenchantTotem` (RF) C→S `(totemId:string, variant:string)` → `{ok, essence?, reason?}`
+   - reason codes: `NotLoaded|BadArg|UnknownTotem|TierCapped|NotEligible|InsufficientEssence|NotRare|OnlyCopy`
+4. `src/ServerScriptService/Bootstrap.server.luau` — `"MergeService"` dopisany do `ORDER`, zaraz PO
+   `"RollService"` (ten sam klaster "poza-runowej meta-ekonomii": Index/Deck/Roll/Merge), PRZED
+   `"SeedService"`. Straznik ORDER-vs-Services (commit `dbb6b49`) automatycznie wymusi zgodność.
+5. `src/ServerScriptService/Services/ProfileService.luau` — `PROFILE_TEMPLATE`: dwa nowe liczniki,
+   `lifetimeMerges = 0` i `lifetimeDisenchants = 0` (wzorzec `lifetimeRolls`, migracja przez
+   `Reconcile()` jak każde inne pole). Bez osobnego logu historii merge — punkt 4 tego dokumentu już
+   uzasadnił że atomowa transformacja licznika kolekcji wystarcza; te dwa liczniki to CAŁA
+   telemetria potrzebna pod metryki retencji #1/#3 z sekcji 7 (engagement rate, trend duplikatów —
+   trend duplikatów czyta wprost `profile.totems`, nie potrzebuje osobnego pola).
+6. `src/ServerScriptService/Services/EconomyService.luau` — nowa funkcja `AwardEssenceFlat(player,
+   amount, reason)`: identyczna do `AwardEssence` ale BEZ mnożenia przez `Stats.essenceMult`.
+   Uzasadnienie: disenchant to konwersja karty→essence po stałym kursie (30), nie "nagroda" — gracz
+   z essenceMult z gamepassa nie powinien dostawać WIĘCEJ essence za tę samą kartę, inaczej
+   disenchant przestaje być "stratnym sinkiem" proporcjonalnie mocniej dla płacących graczy niż
+   zamierzono w matematyce punktu E.
+7. `src/StarterPlayer/StarterPlayerScripts/Controllers/RollRevealController.luau` — `playReveal`
+   (dziś lokalna, wołana tylko z `RequestRoll`) wyeksponowana jako `RollRevealController.PlayReveal
+   (result)`. Merge używa TEGO SAMEGO beatu reveal (spin→ląduje→NEW!/badge) zamiast budowania
+   drugiego UI-flow od zera — dokładnie zalecenie z punktu 5 tego dokumentu. `result` dla merge:
+   `{totemId=resultTotemId, tier=resultTier, variant="Normal", isNewDiscovery=isNewDiscovery,
+   pityTriggered=false}` (merge nigdy nie triggeruje pity — to pole rolla, nie merge'a).
+8. `src/StarterPlayer/StarterPlayerScripts/Controllers/IndexController.luau` — UI TOUCHPOINT.
+   Ekran kolekcji (`IndexController`) to jedyne miejsce gdzie gracz widzi swoje duplikaty, więc
+   merge/disenchant wchodzą TU, nie jako nowy osobny ekran:
+   - `refresh()` dodatkowo woła `GetMergeState` obok istniejącego `GetIndexState`, buduje lookup
+     `id -> mergeEntry` / `"id#variant" -> disenchantEntry`.
+   - `renderGrid`: komórka odkrytego Common/Uncommon z `eligible=true` dostaje mały przycisk
+     **"Połącz"** w rogu (analogicznie do istniejącego przycisku ODBIERZ w `renderThresholds`) —
+     klik → `NetController.Invoke("MergeTotem", id)` → sukces: `RollRevealController.PlayReveal(...)`,
+     po zakończeniu reveal (`RollCompleted` raz) → `refresh()`. Błąd → krótki inline komunikat
+     (wzorzec `_statusLabel` z `RollRevealController`), zero nowego dialogu błędów.
+   - Rare z `count>1` (dowolny wariant) dostaje przycisk **"Rozłóż"** — klik →
+     `NetController.Invoke("DisenchantTotem", id, variant)` → sukces: krótki toast "+30 essence" +
+     `refresh()`. Zero reveal-cinematic (to nie jest moment dopaminy, to sprzątanie).
+
+### Profil — gdzie dokładnie żyją dane
+
+Zero nowych top-level kolekcji. Merge/disenchant czytają i piszą WYŁĄCZNIE:
+`profile.totems["id#variant"]` (już istnieje, Faza 2b) + dwa nowe liczniki `lifetimeMerges`/
+`lifetimeDisenchants` (płaskie liczby, jak `lifetimeRolls`). `profile.essence` przez
+`EconomyService.TrySpendEssence`/`AwardEssenceFlat` (istniejące + jedna nowa funkcja, #6 wyżej).
+
+### collectionScoped — jak dokładnie nie przecieka do ranked
+
+Merge nie dotyka `activeDeck`/`DeckService` automatycznie (punkt 3 tego dokumentu) — nowo wykuty
+Stworek trafia do `profile.totems`, gracz sam decyduje o wejściu do decka przez istniejący
+`SetDeck`. Tryb `ranked` już dziś ignoruje `profile.totems` całościowo (`RunShopService.
+rankedTotemPool` czyta `RankedConfig.TotemIds`, nie kolekcję) — merge nie potrzebuje ŻADNEGO nowego
+kodu ścieżki ranked, bo ranked nigdy nie zagląda do miejsca, które merge zmienia. Zero zmian w
+`RunShopService`/`StatProfileService`.
+
+### Bramka po kodzie
+
+Ta sama metoda co Vinelet/Shardmaw (`tests/BalanceHarness.studio.luau`, `runDeckGate`, n=50),
+uruchomiona PO implementacji: FULL-SMART musi zostać w 30-55%. Merge sam w sobie jest
+poza-runową ekonomią (nie dotyka `TotemEngine`/`ScoreEngine`), ale zmienia DOSTĘPNOŚĆ kart w
+decku (gracz może teraz świadomie kuć konkretne tiery) — bramka mierzy czy to przesuwa wynik, nie
+zakłada że nie przesunie.

@@ -97,6 +97,10 @@ local function spin(winnerId: string, winnerTier: string, spinSec: number)
 	renderCard(winnerId, winnerTier)
 end
 
+-- Wystawione publicznie: System 3 (Merge) reużywa TEGO SAMEGO beatu (spin -> ląduje -> NEW!/badge)
+-- zamiast budowania drugiego UI-flow reveal od zera (MERGE_PLAN_PROPOSAL.md sekcja 8 punkt 7).
+-- result dla merge: {totemId, tier, variant="Normal", isNewDiscovery, pityTriggered=false} -- merge
+-- nigdy nie triggeruje pity, to pole rolla.
 local function playReveal(result: { [string]: any })
 	_statusLabel.Text = ""
 	_badgeLabel.Text = ""
@@ -124,6 +128,19 @@ local function playReveal(result: { [string]: any })
 	task.wait(pacing.holdSec)
 	_dim.Visible = false
 	RollRevealController.RollCompleted:Fire(result)
+end
+
+-- Publiczne wejście dla wołających spoza tego pliku (MergeController). Ten sam `_busy` guard co
+-- RequestRoll, żeby merge-reveal i roll-reveal nie mogły nadpisać sobie tej samej dim/card UI.
+function RollRevealController.PlayReveal(result: { [string]: any })
+	if _busy then
+		return
+	end
+	_busy = true
+	task.spawn(function()
+		playReveal(result)
+		_busy = false
+	end)
 end
 
 function RollRevealController.RequestRoll()

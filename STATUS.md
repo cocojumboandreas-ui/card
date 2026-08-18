@@ -1,18 +1,65 @@
 # STATUS — Roll a Rune
 
-Ostatnia aktualizacja: 2026-08-18, Blok 1-3 (MAX-SLOT + nowe Stworki + balans + cleanup) w pelni
-zamkniety, bramka Shardmaw/Galaxeon PASS (44%, po naprawie crowd-out buga w harnessu). Czytaj to
-+ `git log` zamiast polegac na pamieci poprzedniej sesji.
+Ostatnia aktualizacja: 2026-08-18, System 3 (Merge/Craft) zbudowany i zamkniety — patrz sekcja
+"Merge/Craft (System 3, 2026-08-18)" ponizej. Poprzedni wpis: Blok 1-3 (MAX-SLOT + nowe Stworki +
+balans + cleanup) w pelni zamkniety, bramka Shardmaw/Galaxeon PASS (44%, po naprawie crowd-out
+buga w harnessu). Czytaj to + `git log` zamiast polegac na pamieci poprzedniej sesji.
+
+## Merge/Craft (System 3, 2026-08-18)
+
+Zbudowane autonomicznie (/rc, Andreas poza domem) wg MERGE_PLAN_PROPOSAL.md sekcja 7+8,
+zatwierdzone z 5 poprawkami. Nowe pliki: `Shared/Configs/MergeConfig.luau`,
+`Services/MergeService.luau`. Edytowane: `EconomyService` (+`AwardEssenceFlat`, stały kurs bez
+essenceMult), `ProfileService` (+`lifetimeMerges`/`lifetimeDisenchants`), `Net.luau` (+3 remote'y:
+`GetMergeState`/`MergeTotem`/`DisenchantTotem`), `Bootstrap` (ORDER: `MergeService` po
+`RollService`), `RollRevealController` (+`PlayReveal` publiczne, reuse UI beatu dla merge),
+`IndexController` (+wiersz akcji Połącz/Rozłóż per kafelek, +GetMergeState w `refresh()`).
+
+**BRAMKA-ZERO (ranked pool integrity) — zweryfikowana w kodzie, nie zalozona:**
+`RunShopService.rankedTotemPool` (RunShopService.luau:50-61) czyta WYLACZNIE
+`RankedConfig.TotemIds` (stala lista 5 id), z jawnym komentarzem (linie 45-49) ze ranked nigdy
+nie wola `IndexService.IsDiscovered`. Dispatch `if run.mode=="ranked" then return
+rankedTotemPool(run) end` (linie 64-67) potwierdza ze ranked nigdy nie trafia do galezi
+`availableTotemPool`, gdzie `IsDiscovered` jest faktycznie wolane (linia 91, tylko free-mode).
+**Wniosek: merge NIE potrzebuje dodatkowego scopingu ranked** — nowa karta odkryta przez merge
+trafia do `profile.totems`/IndexService dokladnie jak roll, bez wplywu na ranked.
+
+**Design (5 poprawek Andreasa):**
+1. Weighted-merge **LANDED** (nie uniform-fallback) — `MergeService.selectMergeResult` probkuje
+   ze zbioru nieodkrytych id w tierze docelowym, uniform-fallback dopiero gdy caly tier
+   skompletowany. Zaimplementowane wprost (nie pominięte), bo tanie: kandydaci to max 5 id/tier,
+   partycja+sample to O(n).
+2. Atomowosc (anty-dupe): `MergeService.Merge`/`Disenchant` — ZERO yieldow (brak
+   task.wait/DataStore/Invoke) miedzy walidacja ("ma 5 + ma essence") a mutacja
+   (`data.totems`/essence), caly critical section w jednym synchronicznym wywolaniu. Wzorzec
+   `RunShopService.buy`. Potwierdzone przegladem kodu.
+3. UI: licznik merge liczy WYLACZNIE wariant Normal (`id#Normal`), pokazywany jawnie jako
+   "Normal: x/5" — mix Normal+Foil nigdy nie wyglada jak falszywe "5/5". Foile pozostaja
+   rozkladalne osobno (Rare, dowolny wariant, count>1 -> essence).
+4. Progi/koszty bez zmian: Threshold.Normal=5, EssenceCost{Common=50,Uncommon=150},
+   NextTier{Common->Uncommon,Uncommon->Rare} (brak klucza Rare = cap, Epic/Legendary tylko z
+   paczek/rolla), DisenchantValueEssence=30 (wszystkie warianty, stały kurs).
+5. Liczby 50/150/30 to HIPOTEZY STARTOWE — bramka balansu mierzy % ukonczen runu, NIE przeplyw
+   essence, wiec NIE waliduje tych liczb. Strojenie na dane z playtestu, nie teraz.
+
+**Teoretyczny koszt Common->Rare (czysto z MergeConfig, do osadu na skalę):** sciezka to 5 merge'y
+Common (kazdy 5x Common -> 1x Uncommon, 50 essence) + 1 merge Uncommon (5x Uncommon -> 1x Rare,
+150 essence) = **25 kart Common + 400 essence -> 1 karta Rare**.
+
+**Bramka balansu (sanity, Blok 2) — PASS:** `runDeckGate` (deck=10 mixed, n=50) po zaimplementowaniu
+mergu: NAIVE 4%, **FULL-SMART 38%** (target 30-55%, w pasmie). Merge nie zmienia matematyki runu
+(zero nowych typow kart), wiec brak zmiany wzgledem poprzedniego pomiaru (44% na innym seedzie/
+konfiguracji) jest oczekiwany — oba w pasmie.
 
 ## Gdzie jestesmy (skrot dla nastepnej sesji)
 
-**Fazy 1-4 zrobione, MAX-SLOT i "nowe Stworki + balans" zamkniete.** Gra jest funkcjonalnie
-kompletna (rdzen deckbuildera, kolekcja/roll, retencja D1/D7, monetyzacja Robux, deck-limit 10
-kart, 25 Stworkow) i zgodna z polityka Roblox Paid Random Items. W toku jest **przedpremierowa
-ekspansja, kolejnosc sztywna: MAX-SLOT (zrobione) -> nowe Stworki + balans (zrobione) -> merge
--> packi+daily+luck -> UI+juice**, a dopiero PO niej **Faza 5 — redesign wizualny** (patrz
-sekcja na samym dole pliku). Nastepny krok do zaplanowania z Andreasem: **merge** (krok 3/5).
-Wszystko ponizej to historia/dowody, nie rzeczy do zrobienia teraz.
+**Fazy 1-4 zrobione, MAX-SLOT, "nowe Stworki + balans" i merge zamkniete.** Gra jest funkcjonalnie
+kompletna (rdzen deckbuildera, kolekcja/roll, merge/disenchant, retencja D1/D7, monetyzacja Robux,
+deck-limit 10 kart, 25 Stworkow) i zgodna z polityka Roblox Paid Random Items. W toku jest
+**przedpremierowa ekspansja, kolejnosc sztywna: MAX-SLOT (zrobione) -> nowe Stworki + balans
+(zrobione) -> merge (zrobione) -> packi+daily+luck -> UI+juice**, a dopiero PO niej **Faza 5 —
+redesign wizualny** (patrz sekcja na samym dole pliku). Nastepny krok do zaplanowania z Andreasem:
+**packi+daily+luck** (krok 4/5). Wszystko ponizej to historia/dowody, nie rzeczy do zrobienia teraz.
 
 ## Dyscyplina wywolan MCP (obowiazuje od 2026-08-17)
 

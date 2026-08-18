@@ -32,6 +32,8 @@ local PROFILE_TEMPLATE = {
 	guardiansSeen = {}, -- bestiariusz Strażników
 	skills = {}, -- [skillId] = rank (Faza 2b: SkillTreeService)
 	lifetimeRolls = 0,
+	lifetimeMerges = 0, -- System 3 (Merge/Craft): telemetria engagement, patrz MergeService
+	lifetimeDisenchants = 0,
 	pity = { sinceEpic = 0 },
 	bestScores = { daily = {}, allTime = 0 }, -- daily: [dateKey] = score (walidacja anti-resubmit)
 	quests = { dateKey = "", list = {} },
