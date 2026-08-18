@@ -4,12 +4,17 @@
 -- STATUS.md): dopięte 2 wejścia -- Roll (RollRevealController.RequestRoll) i Indeks
 -- (IndexController.Open) -- w prawym górnym rogu, nad przyciskiem SHOP (widocznym tylko w runie,
 -- patrz RunShopController), więc zero kolizji z esencją/paskiem runu/barem totemów po lewej.
+-- Faza 4 Krok 4b (compliance fix): 3. wejście "?" tuż obok Roll -- otwiera MonetizationController.
+-- OpenOddsView() (ta sama tabela szans co gate zakupu luck-gamepassu, widok informacyjny). Roll za
+-- Esencję kupioną za Robux to TEŻ paid random item -- gracz musi mieć permanentny dostęp do szans
+-- w tym samym panelu co Roll, nie tylko przy zakupie innego produktu.
 
 local UIFactory = require(script.Parent.UIFactory)
 local UIRootController = require(script.Parent.UIRootController)
 local NetController = require(script.Parent.NetController)
 local RollRevealController = require(script.Parent.RollRevealController)
 local IndexController = require(script.Parent.IndexController)
+local MonetizationController = require(script.Parent.MonetizationController)
 
 local HudController = {}
 
@@ -60,6 +65,17 @@ function HudController.Start()
 		BackgroundColor3 = Color3.fromRGB(200, 160, 60),
 	}, function()
 		RollRevealController.RequestRoll()
+	end)
+
+	-- Faza 4 Krok 4b: "?" tuz obok Roll -- permanentny dostep do tabeli szans, w tej samej
+	-- sesji/ekranie co Roll, PRZED kliknieciem, nie tylko przy zakupie luck-gamepassu.
+	UIFactory.button(gui, "?", {
+		Size = UDim2.new(0, 30, 0, 50),
+		Position = UDim2.new(1, -84, 0, 12),
+		BackgroundColor3 = Color3.fromRGB(255, 210, 100),
+		TextColor3 = Color3.fromRGB(40, 30, 0),
+	}, function()
+		MonetizationController.OpenOddsView()
 	end)
 
 	_runRow = UIFactory.panel(gui, {

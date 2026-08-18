@@ -1,9 +1,15 @@
 --!strict
--- Controllers/MonetizationController.luau (Faza 4 Krok 4) — sklep Robux (gamepassy + dev producty,
--- MarketplaceConfig.luau) + compliance gate. Zasada (Paid Random Items): dla kazdego produktu ktory
--- dotyczy losowania (stat/tempBuff/serverBuff == "luck") pokazujemy panel z tabela szans (PolicyService
--- przez remote GetOddsTable) PRZED wywolaniem Prompt*Purchase, z przyciskiem "Kontynuuj do zakupu".
--- Esencja-pakiety i inne nie-luck produkty ida prosto do Prompt*Purchase (proste 1:1, nie loot-box).
+-- Controllers/MonetizationController.luau (Faza 4 Krok 4 + Krok 4b) — sklep Robux (gamepassy + dev
+-- producty, MarketplaceConfig.luau) + compliance gate. Zasada (Paid Random Items): dla kazdego
+-- produktu ktory dotyczy losowania (stat/tempBuff/serverBuff == "luck") pokazujemy panel z tabela
+-- szans (PolicyService przez remote GetOddsTable) PRZED wywolaniem Prompt*Purchase, z przyciskiem
+-- "Kontynuuj do zakupu". Esencja-pakiety i inne nie-luck produkty ida prosto do Prompt*Purchase
+-- (proste 1:1, nie loot-box).
+-- Krok 4b (audyt compliance): sam gamepass-gate NIE wystarczal -- roll za Esencje (kupiona za Robux)
+-- to TEZ paid random item, a Roll nie mial ZADNEGO dostepu do tabeli. Fix: MonetizationController.
+-- OpenOddsView() (widok informacyjny, onConfirm=nil, przycisk "Kontynuuj do zakupu" ukryty) wolane z
+-- HudController przez staly przycisk "?" obok Roll -- PERMANENTNY dostep w tej samej sesji/ekranie
+-- co Roll, nie jednorazowy gate (kruchy -- gracz moze przeklikac raz i nie zobaczyc juz nigdy wiecej).
 -- "brzydko-ale-działająco" (Faza 4 brief): lista tekstowa, zero ladnych kart -- ladna wersja Faza 5.
 
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -21,6 +27,8 @@ local _catalogModal: Frame
 local _catalogList: ScrollingFrame
 local _oddsModal: Frame
 local _oddsList: Frame
+local _oddsConfirmBtn: TextButton
+local _oddsCancelBtn: TextButton
 local _pendingConfirm: (() -> ())? = nil
 
 -- Domyslne Prompt* -- nadpisywalne przez _InjectForTest, zeby testowac gating bez prawdziwego
@@ -111,8 +119,11 @@ local function renderOddsModal(odds: { [string]: any })
 	})
 end
 
--- Otwiera gate tabeli szans; onConfirm wola sie TYLKO po kliknieciu "Kontynuuj do zakupu".
-local function openOddsGate(onConfirm: () -> ())
+-- Otwiera modal tabeli szans. onConfirm nil = widok informacyjny (Faza 4 Krok 4b: przycisk "?" obok
+-- Roll w HUD -- gracz MUSI miec permanentny dostep do tabeli PRZED kazdym rollem za Esencje, nie
+-- tylko przed zakupem luck-gamepassu, bo roll-za-Esencje-kupiona-za-Robux to tez paid random item).
+-- onConfirm podany = gate zakupu, wola sie TYLKO po kliknieciu "Kontynuuj do zakupu".
+local function openOddsModal(onConfirm: (() -> ())?)
 	local odds = fetchOdds()
 	if odds == nil then
 		-- Serwer niedostepny -- nie blokuj gracza w nieskonczonosc, ale tez nie omijaj gate'u cicho.
@@ -120,7 +131,15 @@ local function openOddsGate(onConfirm: () -> ())
 	end
 	renderOddsModal(odds)
 	_pendingConfirm = onConfirm
+	_oddsConfirmBtn.Visible = onConfirm ~= nil
+	_oddsCancelBtn.Text = if onConfirm ~= nil then "Anuluj" else "Zamknij"
 	_oddsModal.Visible = true
+end
+
+-- Publiczne: widok tabeli szans BEZ pending-purchase -- wolane z HudController (przycisk "?" obok
+-- Roll, Faza 4 Krok 4b).
+function MonetizationController.OpenOddsView()
+	openOddsModal(nil)
 end
 
 -- Publiczna sciezka zakupu -- wolana z przyciskow katalogu ORAZ z testow.
@@ -137,10 +156,43 @@ local function attemptPurchase(kind: "gamepass" | "devproduct", key: string)
 		end
 	end
 	if isLuckAffecting(cfg) then
-		openOddsGate(doPrompt)
+		openOddsModal(doPrompt)
 	else
 		doPrompt()
 	end
+end
+
+-- PURE (testowalna): czytelny opis efektu wprost z MarketplaceConfig -- gracz MUSI wiedziec co
+-- kupuje (Faza 4 Krok 4b p.4: katalog byl podpisany samym kluczem configu, np. "EssencePackMedium",
+-- bez liczby Esencji -- niejasne). Zero osobnej hardkodowanej tresci: liczby czytane z tego samego
+-- configa co grant w PurchaseService.grantDevProduct.
+local function describeGamePass(key: string, cfg: { [string]: any }): string
+	if key == "FastRolls" then
+		return `{key} (skip roll animation)`
+	end
+	if cfg.stat and cfg.mult then
+		return `{key} ({cfg.stat} x{cfg.mult})`
+	end
+	if cfg.stat and cfg.add then
+		return `{key} (+{cfg.add} {cfg.stat})`
+	end
+	return key
+end
+
+local function describeDevProduct(key: string, cfg: { [string]: any }): string
+	if cfg.essence then
+		return `{key} ({cfg.essence} Essence)`
+	end
+	if cfg.tempBuff then
+		return `{key} ({cfg.tempBuff.stat} x{cfg.tempBuff.mult}, {cfg.tempBuff.durationSec}s)`
+	end
+	if cfg.rerollCredits then
+		return `{key} (+{cfg.rerollCredits} Reroll Credits)`
+	end
+	if cfg.serverBuff then
+		return `{key} (server {cfg.serverBuff.stat} x{cfg.serverBuff.mult}, {cfg.serverBuff.durationSec}s)`
+	end
+	return key
 end
 
 local function buildCatalogRow(label: string, kind: "gamepass" | "devproduct", key: string, priceRobux: number)
@@ -170,10 +222,10 @@ local function buildCatalog()
 		end
 	end
 	for key, cfg in pairs(MarketplaceConfig.GamePasses) do
-		buildCatalogRow(key, "gamepass", key, cfg.priceRobux)
+		buildCatalogRow(describeGamePass(key, cfg), "gamepass", key, cfg.priceRobux)
 	end
 	for key, cfg in pairs(MarketplaceConfig.DevProducts) do
-		buildCatalogRow(key, "devproduct", key, cfg.priceRobux)
+		buildCatalogRow(describeDevProduct(key, cfg), "devproduct", key, cfg.priceRobux)
 	end
 	_catalogList.CanvasSize = UDim2.new(0, 0, 0, #_catalogList:GetChildren() * 48)
 end
@@ -232,7 +284,7 @@ function MonetizationController.Start()
 		Visible = false,
 		ZIndex = 10,
 	})
-	UIFactory.label(_oddsModal, "SZANSE (przed zakupem)", {
+	UIFactory.label(_oddsModal, "SZANSE", {
 		Size = UDim2.new(1, 0, 0, 26),
 		Position = UDim2.new(0, 0, 0, 6),
 		TextSize = 16,
@@ -245,7 +297,7 @@ function MonetizationController.Start()
 		BackgroundTransparency = 1,
 		ZIndex = 10,
 	})
-	UIFactory.button(_oddsModal, "Anuluj", {
+	_oddsCancelBtn = UIFactory.button(_oddsModal, "Anuluj", {
 		Size = UDim2.new(0, 140, 0, 40),
 		Position = UDim2.new(0, 20, 1, -48),
 		BackgroundColor3 = Color3.fromRGB(160, 60, 60),
@@ -253,7 +305,7 @@ function MonetizationController.Start()
 	}, function()
 		closeOddsModal()
 	end)
-	UIFactory.button(_oddsModal, "Kontynuuj do zakupu", {
+	_oddsConfirmBtn = UIFactory.button(_oddsModal, "Kontynuuj do zakupu", {
 		Size = UDim2.new(0, 220, 0, 40),
 		Position = UDim2.new(1, -240, 1, -48),
 		BackgroundColor3 = Color3.fromRGB(90, 200, 120),
@@ -298,6 +350,15 @@ function MonetizationController._AttemptPurchaseForTest(kind, key, confirmGate: 
 end
 function MonetizationController._GateVisibleForTest(): boolean
 	return _oddsModal.Visible
+end
+-- Stan przyciskow modala tabeli szans (Faza 4 Krok 4b: rozroznia widok-informacyjny od gate'u zakupu).
+function MonetizationController._OddsModalStateForTest(): { [string]: any }
+	return {
+		visible = _oddsModal.Visible,
+		confirmBtnVisible = _oddsConfirmBtn.Visible,
+		cancelBtnText = _oddsCancelBtn.Text,
+		oddsListChildCount = #_oddsList:GetChildren(),
+	}
 end
 
 return MonetizationController
