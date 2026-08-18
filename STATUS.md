@@ -1,9 +1,63 @@
 # STATUS — Roll a Rune
 
-Ostatnia aktualizacja: 2026-08-18, System 3 (Merge/Craft) zbudowany i zamkniety — patrz sekcja
-"Merge/Craft (System 3, 2026-08-18)" ponizej. Poprzedni wpis: Blok 1-3 (MAX-SLOT + nowe Stworki +
-balans + cleanup) w pelni zamkniety, bramka Shardmaw/Galaxeon PASS (44%, po naprawie crowd-out
-buga w harnessu). Czytaj to + `git log` zamiast polegac na pamieci poprzedniej sesji.
+Ostatnia aktualizacja: 2026-08-18, fix compliance odds-bug (PolicyService vs RollService rozjazd)
+— patrz sekcja "Odds-bug fix (compliance, 2026-08-18)" ponizej. Blokowal System 4 (packi), teraz
+odblokowany, ALE packi wciaz czekaja na decyzje Andreasa o strukturze tabel (patrz
+PACKS_PLAN_PROPOSAL.md) — NIE zaczynac kodu paczek bez tego. Poprzedni wpis: System 3 (Merge/
+Craft) zbudowany i zamkniety. Czytaj to + `git log` zamiast polegac na pamieci poprzedniej sesji.
+
+## Odds-bug fix (compliance, 2026-08-18)
+
+**Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
+compliance) modelowala pule totemow jako "1 totem = 1 tier" (kaskada `remaining *= 1/weight` po
+`RarityConfig.TierWeight`, 5 wpisow). Realny roll w `RollService.selectTotem` iteruje PO
+KAZDYM TOTEMIE z osobna (pula ma 25 wpisow: Common=10/Uncommon=5/Rare=4/Epic=4/Legendary=2,
+kazdy z wlasnym niezaleznym rzutem `nEff=floor(weight/luck)`) — te dwa modele sa rownowazne
+TYLKO gdy kazdy tier ma dokladnie 1 totem. Roster urosl (dowod: `RarityConfig.luau` naglowek
+"All 15 MVP totems" + PLACEHOLDER-flaga "nie zsymulowane przeciw kaskadzie", checkpoint z
+2026-08-17 mial empirycznie Legendary~1.1% co pasuje do STAREGO, mniejszego rostera), display
+zostal na starych zalozeniach — displayed Legendary 1.11% vs realne 2.21% (2x), analogicznie
+zanizone Epic/Rare/Uncommon, zawyzony Common.
+
+**Fix — single-source-of-truth:** nowy plik `Shared/Configs/TotemPool.luau`,
+`TotemPool.sorted()` = JEDYNA funkcja budujaca posortowana pule totemow (ekstrakcja z
+prywatnego `totemsSorted()`, ktore wczesniej zylo tylko w `RollService`). `RollService.
+selectTotem` I `PolicyService.computeTierOdds` (przepisana matematyka: per-tier grupa k
+totemow o wadze w -> `landHere = survive*(1-(1-1/w)^k)`, ostatni/najczestszy tier chlonie
+reszte tak jak realny fallback) teraz CZYTAJA TA SAMA funkcje — strukturalnie niemozliwe zeby
+sie znowu rozjechaly (jedno zrodlo, nie dwie kopie liczby).
+
+**Decyzja "1.11% czy 2.2%" (NIE moja do podjecia — dla Andreasa):** 1.11% NIE byl swiadomym
+targetem, to byl przypadkowy output starej zepsutej formuly (dowod: `RarityConfig.luau` sam
+flaguje `TierWeight` jako niezwalidowany placeholder). Fix jak zaimplementowany NIE zmienia
+realnej hojnosci gry ani o promil — `RollService` losowal 2.21% Legendary ZANIM cokolwiek
+tu zmieniono, zmienil sie WYLACZNIE display (byl klamliwy, teraz mowi prawde). Jesli Andreas
+chce realnie obnizyc droprate do ~1.1%, to jest OSOBNA decyzja balansu (podniesc
+`RarityConfig.TierWeight.Legendary`) — swiadomie NIE podjeta w tym zadaniu, flagowana tutaj.
+
+**Dowod symulacja (obowiazkowy, `execute_luau`, N=100000, luck=1, real `_SelectTotemForTest`/
+`_SelectVariantForTest`, porownanie z `PolicyService._ComputeTierOddsForTest(TotemPool.sorted())`):**
+
+| Tier | empiryczne% | wyswietlane% | diff(pp) |
+|---|---|---|---|
+| Legendary | 2.243 | 2.210 | +0.033 |
+| Epic | 12.323 | 12.401 | -0.078 |
+| Rare | 25.232 | 25.099 | +0.133 |
+| Uncommon | 29.433 | 29.367 | +0.066 |
+| Common | 30.769 | 30.923 | -0.154 |
+
+Wszystko w granicach szumu Monte Carlo dla N=100k (~0.1-0.15pp) — **dyskolzura == rzeczywistosc,
+PASS**. Warianty rowniez zweryfikowane w tym samym runie (Normal 84.90%/Foil 9.97%/Gold
+4.02%/Galaxy 1.01%/Rainbow 0.10%), zgodne z `VariantConfig.ladder`.
+
+**Belt-and-suspenders (ranked pool integrity):** `RunShopService.rankedTotemPool`
+(RunShopService.luau:50-56) nadal czyta WYLACZNIE stala `RankedConfig.TotemIds` —
+`IndexService.IsDiscovered` w tej galezi w ogole nie jest wywolywane (potwierdzone grepem tej
+sesji). Odds-fix nie dotyka sciezki ranked.
+
+**Nota (poprawic przy nastepnej edycji Kroku 4b w tym pliku):** stara tabela w sekcji "Krok 4b"
+ponizej (linia z "Legendary 1.11%, Epic 3.30%...") jest teraz NIEAKTUALNA — to byl zrzut ekranu
+przed tym fixem, zostawiona jako historia audytu, nie jako biezacy stan.
 
 ## Merge/Craft (System 3, 2026-08-18)
 

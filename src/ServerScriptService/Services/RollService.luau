@@ -13,36 +13,19 @@ local ServiceRegistry = require(Framework:WaitForChild("ServiceRegistry"))
 local Net = require(Framework:WaitForChild("Net"))
 local Shared = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Configs")
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
-local TotemConfig = require(Shared:WaitForChild("TotemConfig"))
 local RarityConfig = require(Shared:WaitForChild("RarityConfig"))
 local VariantConfig = require(Shared:WaitForChild("VariantConfig"))
+local TotemPool = require(Shared:WaitForChild("TotemPool"))
 
 local RollService = {}
 
 local _profile, _stat, _economy, _index = nil, nil, nil, nil
 
--- Totemy posortowane MALEJĄCO po tier-weight (najrzadsze pierwsze) — raz, cache.
-local _totemsSorted = nil
-local function totemsSorted()
-	if _totemsSorted then
-		return _totemsSorted
-	end
-	local arr = {}
-	for id, totem in TotemConfig.Totems do
-		local weight = RarityConfig.TierWeight[totem.tier]
-		assert(weight ~= nil, "RollService: TotemConfig tier '" .. tostring(totem.tier) .. "' has no RarityConfig.TierWeight entry")
-		arr[#arr + 1] = { id = id, tier = totem.tier, weight = weight }
-	end
-	table.sort(arr, function(a, b)
-		return a.weight > b.weight
-	end)
-	_totemsSorted = arr
-	return arr
-end
-
 -- PURE (testowalna): wybor tieru. stats={luck}; pity={sinceEpic}; rng=Random. Zwraca {id,tier,weight,pityTriggered}.
+-- Pool = TotemPool.sorted() — JEDYNE źródło (współdzielone z PolicyService.computeTierOdds, żeby
+-- tabela szans pokazywana graczowi nigdy nie mogła rozjechać się z tym co faktycznie losuje ten kod).
 local function selectTotem(stats, pity, rng)
-	local pool = totemsSorted()
+	local pool = TotemPool.sorted()
 	local pityTriggered = false
 	if pity and pity.sinceEpic and pity.sinceEpic >= RarityConfig.Pity.threshold then
 		local minWeight = RarityConfig.TierWeight[RarityConfig.Pity.guaranteeTier]
