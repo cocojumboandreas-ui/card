@@ -590,6 +590,36 @@ naprawiony recznym `set_script_source`/`create_object` przed pierwszym wiarygodn
 Zawsze zweryfikuj ze zmierzony kod to NAPRAWDE kod na dysku (np. przez odczyt live wartosci
 configu w tej samej `eval_server_runtime` VM), zanim zaufasz wynikowi bramki.
 
+### Fix: Vinelet martwa karta (2026-08-18)
+
+Po zamknieciu bramki powyzej, Andreas zglosil ze Vinelet (Uncommon, po cieciu 16->8) byl znow
+**strictly gorszy** od blobby (Common, moc+12 zawsze) — ta sama statystyka (`moc`) i ten sam
+warunek (`always`), wiec czyste porownanie liczb: Uncommon przegrywal Common, martwa karta.
+Sprawdzony roster: zero bezwarunkowego Common `scalingFlat{stat=rez}` (quackers/sparkfly to
+Common ale WARUNKOWE; jedyny bezwarunkowy rez-scaler w calym rosterze to lavacat, Epic,
+perTrigger=2). Fix: Vinelet przeniesiony na `scalingFlat{stat=rez, perTrigger=1}` (motyw "pnącza"
+bez zmian) — inna statystyka niz blobby, wiec zaden bezposredni 1:1 spor liczb; perTrigger=1 < 2
+(lavacat, Epic, unconditional), zeby Uncommon nie dorownywal Epic.
+
+Bramka po fixie (ten sam wzorzec co gate "nowe Stworki" — `DeckService.SetDeck` wymuszony na
+dokladnie tych 10 nowych id + monkeypatch `IndexService.IsDiscovered`, n=50, PRAWDZIWA sciezka
+produkcyjna): NAIVE 18% (bez zmian), **FULL-SMART 50%** (bylo 46% przed fixem, widelki 30-55%) —
+**PASS**. Pick share Vineleta 50% w tym decku (nie martwa karta, nie dominuje).
+
+Przy okazji zlapany i naprawiony **drugi desync Studio** tej samej klasy co powyzej: live
+`Bootstrap.server.luau` nie mial `"DeckService"` w `ORDER` (na dysku jest od commitu MAX-SLOT) —
+`DeckService.SetDeck`/`GetDeck` cicho zwracaly `NoProfile`/pusty deck, bo `DeckService.Start()`
+nigdy sie nie wykonal (`_profileService` zostawal `nil`). Naprawiony recznym `set_script_source`
+Bootstrapu + restart playtestu. **Do pilnowania recznie przy kazdym resyncu placu** (ten sam
+rodzaj bledu co przy MAX-SLOT — brak `project.json` oznacza ze kazda zmiana `ORDER`/nowy serwis
+trzeba weryfikowac w live Studio, nie ufac ze push na dysk = push do Studio).
+
+**Znaleziony przy okazji, NIE naprawiony (poza scope tej sesji):** shardmaw (Epic) po cieciu
+24->12 ma DOKLADNIE ta sama wartosc co blobby (Common) — oba `scalingFlat{stat=moc}`,
+`condition=always`, `perTrigger=12`. To remis, nie strictly-gorszy jak Vinelet, ale ten sam
+wzorzec: Epic nie powinien byc rownowazny Common. Zapisane w komentarzu `TotemConfig.luau` przy
+vinelecie — do rozwazenia w kolejnej rundzie balansu (nie blokuje merge, krok 3/5).
+
 **Nastepny krok: merge (krok 3/5), planowanie z Andreasem.**
 
 ## Faza 5 — redesign wizualny (jeszcze nie rozpoczety, PO calej przedpremierowej ekspansji)

@@ -260,6 +260,23 @@ TotemConfig.Totems = {
 		effect = { rezMult = 2.7 },
 	} :: TotemDef,
 
+	-- Retem (2026-08-18): po cięciu 16->8 Vinelet był strictly gorszy od blobby (Common, moc+12
+	-- zawsze) -- sama stat + sam warunek, więc czyste porównanie liczb, Uncommon przegrywał
+	-- Common. Zero bezwarunkowego Common scalingFlat na "rez" w rosterze (quackers/sparkfly to
+	-- Common ale WARUNKOWE; jedyny bezwarunkowy rez-scaler to lavacat, Epic, perTrigger=2) --
+	-- przeniesiony na inną statystykę (rez) zamiast moc, żeby nie było już bezpośredniego
+	-- porównania 1:1 z blobby. perTrigger=1 < lavacat (Epic, unconditional, perTrigger=2), żeby
+	-- Uncommon nie dorównywał Epic. Motyw "pnącza" (oplatające/wzmacniające) bez zmian.
+	-- Bramka po fixie (n=50, deck=dokladnie tych 10 nowych, ta sama sciezka co Bramka #1): NAIVE
+	-- 18% (bez zmian), FULL-SMART 50% (bylo 46% przed fixem, w widelkach 30-55%) -- PASS. Pick
+	-- share Vineleta 50% (nie martwa karta, nie dominuje). Przy okazji naprawiony desync Studio:
+	-- live Bootstrap.server.luau nie mial "DeckService" w ORDER (brak na dysku od MAX-SLOT), wiec
+	-- SetDeck/GetDeck realnie nie dzialaly zanim to zauwazono -- napraw recznie po kazdym resyncu
+	-- placu, patrz STATUS.md.
+	-- Znaleziony przy okazji, NIE naprawiony (poza scope tej sesji): shardmaw (Epic) po cięciu
+	-- 24->12 ma DOKLADNIE ta sama wartosc co blobby (Common) -- oba scalingFlat{moc}, condition=
+	-- always, perTrigger=12. Nie "strictly gorszy" (remis, nie dominacja), ale ten sam wzorzec co
+	-- Vinelet: Epic nie powinien byc rownowazny Common. Do rozwazenia w kolejnej rundzie balansu.
 	vinelet = {
 		id = "vinelet",
 		name = "Vinelet",
@@ -268,7 +285,7 @@ TotemConfig.Totems = {
 		phase = "onScore",
 		condition = "always",
 		conditionArg = nil,
-		effect = { scalingFlat = { stat = "moc", perTrigger = 8 } },
+		effect = { scalingFlat = { stat = "rez", perTrigger = 1 } },
 	} :: TotemDef,
 
 	boltpup = {
