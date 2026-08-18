@@ -37,6 +37,41 @@ local ORDER = {
 	"AnnouncementService", -- Faza 3: nasłuch RollService.Rolled, tylko odczyt (get); MessagingService cross-server
 }
 
+-- Straznik: ORDER musi zgadzac sie 1:1 z modulami faktycznie obecnymi w Services, w obie strony.
+-- Bez tego serwis moze cicho wypasc z ORDER (jak DeckService przy MAX-SLOT, patrz STATUS.md) i po
+-- prostu nie wystartowac -- zero bledu, tylko ciche NoProfile/puste dane w produkcji.
+do
+	local orderSet: { [string]: boolean } = {}
+	for _, name in ipairs(ORDER) do
+		orderSet[name] = true
+	end
+
+	local missingFromOrder: { string } = {}
+	for _, child in ipairs(Services:GetChildren()) do
+		if child:IsA("ModuleScript") and not orderSet[child.Name] then
+			table.insert(missingFromOrder, child.Name)
+		end
+	end
+
+	local missingOnDisk: { string } = {}
+	for _, name in ipairs(ORDER) do
+		if not Services:FindFirstChild(name) then
+			table.insert(missingOnDisk, name)
+		end
+	end
+
+	if #missingFromOrder > 0 or #missingOnDisk > 0 then
+		error(
+			string.format(
+				"[Bootstrap] ORDER desync! W Services ale NIE w ORDER: [%s]. W ORDER ale brak w Services: [%s].",
+				table.concat(missingFromOrder, ", "),
+				table.concat(missingOnDisk, ", ")
+			),
+			0
+		)
+	end
+end
+
 for _, name in ipairs(ORDER) do
 	local module = Services:WaitForChild(name)
 	ServiceRegistry.register(name, require(module))
