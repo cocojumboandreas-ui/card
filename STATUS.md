@@ -1,18 +1,18 @@
 # STATUS — Roll a Rune
 
-Ostatnia aktualizacja: 2026-08-18, koniec sesji MAX-SLOT (krok 1/5 przedpremierowej
-ekspansji, bramka balansu PASS). Czytaj to + `git log` zamiast polegac na pamieci poprzedniej
-sesji.
+Ostatnia aktualizacja: 2026-08-18, koniec sesji "nowe Stworki + balans" (krok 2/5
+przedpremierowej ekspansji, bramka balansu PASS). Czytaj to + `git log` zamiast polegac na
+pamieci poprzedniej sesji.
 
 ## Gdzie jestesmy (skrot dla nastepnej sesji)
 
-**Fazy 1-4 zrobione, MAX-SLOT zamkniety.** Gra jest funkcjonalnie kompletna (rdzen
-deckbuildera, kolekcja/roll, retencja D1/D7, monetyzacja Robux, deck-limit 10 kart) i zgodna
-z polityka Roblox Paid Random Items. W toku jest **przedpremierowa ekspansja, kolejnosc
-sztywna: MAX-SLOT (zrobione) -> nowe Stworki + balans -> merge -> packi+daily+luck ->
-UI+juice**, a dopiero PO niej **Faza 5 — redesign wizualny** (patrz sekcja na samym dole
-pliku). Nastepny krok do zaplanowania z Andreasem: nowe Stworki + balans. Wszystko ponizej to
-historia/dowody, nie rzeczy do zrobienia teraz.
+**Fazy 1-4 zrobione, MAX-SLOT i "nowe Stworki + balans" zamkniete.** Gra jest funkcjonalnie
+kompletna (rdzen deckbuildera, kolekcja/roll, retencja D1/D7, monetyzacja Robux, deck-limit 10
+kart, 25 Stworkow) i zgodna z polityka Roblox Paid Random Items. W toku jest **przedpremierowa
+ekspansja, kolejnosc sztywna: MAX-SLOT (zrobione) -> nowe Stworki + balans (zrobione) -> merge
+-> packi+daily+luck -> UI+juice**, a dopiero PO niej **Faza 5 — redesign wizualny** (patrz
+sekcja na samym dole pliku). Nastepny krok do zaplanowania z Andreasem: **merge** (krok 3/5).
+Wszystko ponizej to historia/dowody, nie rzeczy do zrobienia teraz.
 
 ## Dyscyplina wywolan MCP (obowiazuje od 2026-08-17)
 
@@ -537,6 +537,61 @@ oczekiwaniem — mniejszy/gorszy niz pelna kolekcja, wiekszy/lepszy niz sam star
 
 **Nastepny krok: Faza "nowe Stworki + balans" (krok 2/5), planowanie z Andreasem.**
 
+## Nowe Stworki + balans — ZAMKNIETY, bramka balansu PASS (2026-08-18)
+
+Krok 2 z 5-etapowej przedpremierowej ekspansji. 10 nowych Stworkow w `TotemConfig.luau`
+(pebblit, sparkfly, puffcap, frostnib, vinelet, boltpup, tidalox, emberwing, shardmaw,
+galaxeon — kolekcja teraz 25 lacznie), kazdy trzyma sie DOKLADNIE jednego z 4 sprawdzonych
+archetypow silnika (flat-elemental / warunkowy mult / mocMultElement / scalingFlat) — zero
+nowych prymitywow. Art: `cardsw/Meshy_AI_*.png` -> wycinacz tla (connected-components od
+brzegu, nie prog jasnosci — zeby nie wyciac jasnych plam WEWNATRZ postaci) -> `cardsw/<id>.png`
+-> upload Open Cloud (`scripts/upload_card_art.py`, filtr nazw jako argv[1] zeby nie
+re-uploadowac pozostalych 15) -> `resolve_decal_textures.luau` -> `CardArtConfig.luau`.
+Zweryfikowana REALNA alfa (5-85% przezroczystosci na obraz, nie 0% ani >85%) przed uploadem.
+
+**Bramka balansu** (`tests/BalanceHarness.studio.luau`-owy wzorzec, custom `SetDeck`-owa
+wersja zamiast `runDeckGate`/`defaultDeck()` — ten drugi NIE gwarantuje dokladnego decka, bo
+Common-tier zawsze przecieka do puli mimo patcha `IsDiscovered`; `DeckService.SetDeck`
+wymuszona dokladnie na 10 nowych id, zweryfikowana 0% pick-share na wszystkich 15 starych).
+Deck = dokladnie tych 10 nowych, n=50, PRAWDZIWA sciezka produkcyjna, live w
+solo-playteście (`eval_server_runtime`):
+
+| Bot | Completion | Uwagi |
+|---|---|---|
+| NAIVE (podloga) | 14% (7/50) | oczekiwane nisko |
+| FULL-SMART (proxy czlowieka) | **46% (23/50)** | w wymaganym pasmie 30-55% -> **PASS** |
+
+**Diagnoza przestrzalu i naprawa — WAZNE, bo pierwsza hipoteza byla bledna:**
+
+Pierwszy przebieg (przed naprawa) dal FULL-SMART 58% (przestrzal). Podejrzany #1 z gory byl
+Galaxeon (`mocMult` 4.0 na warunku "Konwergencja") — okazalo sie **BEZ WPLYWU**: zjazd
+4.0->1.0 (pelna neutralizacja) przy n=50 dal identyczny wynik 58%==58%. Sweep ablacyjny
+per-totem (n=20, bezposrednia mutacja `TotemConfig.Totems.<id>.effect` w zywej VM przez
+`eval_server_runtime`, bez restartu — szybsza iteracja niz push+restart) ujawnil prawdziwych
+winowajcow: **Vinelet** i **Shardmaw**, oba `scalingFlat` (rosnie co `onScore` bez limitu przez
+caly run, `condition="always"` — bez warunku). Neutralizacja Vineleta samego: -10pp.
+Neutralizacja Shardmawa samego: -20pp. Oba naraz: -40pp (do 15%, ZA NISKO — pelna neutralizacja
+przestrzeliwuje w druga strone). Wzorzec identyczny jak w Faza 3 runda 4 (patrz komentarz w
+`TotemConfig.luau`) — SKALUJACE totemy bez ograniczenia to systemowe zrodlo late-game
+przestrzalu, nie multiplikatywne/warunkowe. Boltpup i Emberwing (oba warunkowe mnozniki)
+przetestowane ablacyjnie jako calkowicie OBOJETNE dla tego decka.
+
+Naprawa: `perTrigger` obu ściete o 50% (Vinelet 16->8, Shardmaw 24->12), Galaxeon zostawiony na
+3.5 (nieszkodliwa niezalezna normalizacja wzgledem reszty rosteru, nie przyczyna, nie ma
+powodu cofac do 4.0). Pelna historia i liczby w komentarzu nad blokiem "System 2" w
+`TotemConfig.luau`.
+
+**Lekcja dla przyszlych sesji:** ten projekt nie ma `project.json` (patrz sekcja wyzej) — Studio
+byl gleboko zdesynchronizowany zanim dalo sie w ogole zmierzyc balans: `RunShopService.luau`
+mial stara wersje sprzed MAX-SLOT, `DeckService.luau` **w ogole nie mial instancji** w Studio
+(nigdy nie zapushowany), `GameConfig.luau` w Studio nie mial pola `DeckSize` (stary, 640 vs 2728
+znakow) co walilo `attempt to compare nil < number` w `DeckService.SetDeck`. Kazdy z tych trzech
+naprawiony recznym `set_script_source`/`create_object` przed pierwszym wiarygodnym pomiarem.
+Zawsze zweryfikuj ze zmierzony kod to NAPRAWDE kod na dysku (np. przez odczyt live wartosci
+configu w tej samej `eval_server_runtime` VM), zanim zaufasz wynikowi bramki.
+
+**Nastepny krok: merge (krok 3/5), planowanie z Andreasem.**
+
 ## Faza 5 — redesign wizualny (jeszcze nie rozpoczety, PO calej przedpremierowej ekspansji)
 
 Ostatnia faza przed soft launchem. Cala gra dzis to "brzydko-ale-dzialajaco" — kolorowe bloki
@@ -556,7 +611,7 @@ z `UIFactory`, zero prawdziwego designu. Faza 5 to cukierkowy redesign wszystkic
 
 ## Stan git
 
-- Branch `main`, drzewo robocze czyste, w pelni zsynchronizowany z `origin/main` do commitu
-  `217324c` (Faza 4 krok #4b — ostatni commit calej Fazy 4).
+- Branch `main`, lokalnie przed `origin/main` (MAX-SLOT `46ece98` + "nowe Stworki + balans" —
+  patrz `git log` po commicie tej sesji), jeszcze nie `git push`.
 - `cardsw/` w `.gitignore`, nie pojawia sie jako untracked (raw art PNG, backup lokalny
   wystarczy — patrz decyzja w sekcji Faza 2b UI wyzej).

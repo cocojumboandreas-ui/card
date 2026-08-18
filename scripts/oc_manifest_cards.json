@@ -1,0 +1,52 @@
+{
+  "boltpup": {
+    "ok": true,
+    "assetId": "127834381038290",
+    "path": "D:\\RobloxProjects\\cards\\scripts\\..\\cardsw\\boltpup.png"
+  },
+  "emberwing": {
+    "ok": true,
+    "assetId": "134541389573700",
+    "path": "D:\\RobloxProjects\\cards\\scripts\\..\\cardsw\\emberwing.png"
+  },
+  "frostnib": {
+    "ok": true,
+    "assetId": "79935622619364",
+    "path": "D:\\RobloxProjects\\cards\\scripts\\..\\cardsw\\frostnib.png"
+  },
+  "galaxeon": {
+    "ok": true,
+    "assetId": "114501702405121",
+    "path": "D:\\RobloxProjects\\cards\\scripts\\..\\cardsw\\galaxeon.png"
+  },
+  "pebblit": {
+    "ok": true,
+    "assetId": "136724773228349",
+    "path": "D:\\RobloxProjects\\cards\\scripts\\..\\cardsw\\pebblit.png"
+  },
+  "puffcap": {
+    "ok": true,
+    "assetId": "126963603646210",
+    "path": "D:\\RobloxProjects\\cards\\scripts\\..\\cardsw\\puffcap.png"
+  },
+  "shardmaw": {
+    "ok": true,
+    "assetId": "92440866972543",
+    "path": "D:\\RobloxProjects\\cards\\scripts\\..\\cardsw\\shardmaw.png"
+  },
+  "sparkfly": {
+    "ok": true,
+    "assetId": "76425696075789",
+    "path": "D:\\RobloxProjects\\cards\\scripts\\..\\cardsw\\sparkfly.png"
+  },
+  "tidalox": {
+    "ok": true,
+    "assetId": "119942254341386",
+    "path": "D:\\RobloxProjects\\cards\\scripts\\..\\cardsw\\tidalox.png"
+  },
+  "vinelet": {
+    "ok": true,
+    "assetId": "88883356049984",
+    "path": "D:\\RobloxProjects\\cards\\scripts\\..\\cardsw\\vinelet.png"
+  }
+}

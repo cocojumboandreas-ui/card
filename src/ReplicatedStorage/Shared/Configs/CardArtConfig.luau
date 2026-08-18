@@ -31,6 +31,19 @@ CardArtConfig.Images = {
 	thunderwolf = "rbxassetid://107189263202851",
 	kingosaur = "rbxassetid://77927691164146",
 	-- astrodrake celowo pominięty -- poza MVP-15 (RUNE_RNG_STWORKI.md §A6), art w cardsw/_not_mvp/.
+
+	-- System 2 (nowe Stworki, 2026-08-18) -- upload przez cards/scripts/upload_card_art.py
+	-- (filtr nazw jako argv[1], żeby nie re-uploadować pozostałych 15) + resolve_decal_textures.luau.
+	boltpup = "rbxassetid://98074471382346",
+	emberwing = "rbxassetid://86498311121284",
+	frostnib = "rbxassetid://138585842561232",
+	galaxeon = "rbxassetid://125382479572362",
+	pebblit = "rbxassetid://81369847695082",
+	puffcap = "rbxassetid://131643779083438",
+	shardmaw = "rbxassetid://139209865672360",
+	sparkfly = "rbxassetid://94874022611678",
+	tidalox = "rbxassetid://138273537574496",
+	vinelet = "rbxassetid://90264794542654",
 } :: { [string]: string }
 
 function CardArtConfig.get(totemId: string): string?

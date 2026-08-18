@@ -18,9 +18,16 @@ print("GROUP_ID:", oc.GROUP_ID, "KEY_ENV_NAME:", oc.KEY_ENV_NAME, "key_set:", bo
 SRC_DIR = os.path.join(os.path.dirname(__file__), "..", "cardsw")
 OUT = os.path.join(os.path.dirname(__file__), "oc_manifest_cards.json")
 
+# Opcjonalny filtr nazw (comma-separated) jako argv[1] -- bez niego łapie WSZYSTKIE cardsw/*.png,
+# co przy kolejnych partiach nowych kart re-uploaduje też już wgrane pliki. Użycie przy dodawaniu
+# nowej partii: python upload_card_art.py name1,name2,...
+only = set(sys.argv[1].split(",")) if len(sys.argv) > 1 else None
+
 results = {}
 for path in sorted(glob.glob(os.path.join(SRC_DIR, "*.png"))):
     name = os.path.splitext(os.path.basename(path))[0]
+    if only is not None and name not in only:
+        continue
     print(f"uploading {name} ...", flush=True)
     res = oc.upload_file(path, asset_type="Decal", display_name=name)
     results[name] = res

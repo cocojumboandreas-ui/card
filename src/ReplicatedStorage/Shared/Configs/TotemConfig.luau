@@ -199,6 +199,130 @@ TotemConfig.Totems = {
 		conditionArg = "Triada",
 		effect = { scalingFlat = { stat = "moc", perTrigger = 32 } },
 	} :: TotemDef,
+
+	-- System 2 (nowe Stworki, 2026-08-18) — 10 dodatkowych, art z cardsw/Meshy_AI_*, wycięte tłem
+	-- (scripts/bg_remove -- patrz STATUS.md). Efekty tematyczne wg żywiołu/charakteru, ale KAŻDY
+	-- trzyma się DOKŁADNIE jednego z 4 sprawdzonych archetypów istniejących 15 (flat-elemental /
+	-- warunkowy mult / mocMultElement / scalingFlat) -- zero nowych prymitywów silnika (procChance/
+	-- revive/elementWildcard zostają nieużyte, brak danych kalibracyjnych z produkcji). Bramka
+	-- balansu: tests/BalanceHarness.studio.luau, decki z nowymi Stworkami, FULL-SMART 30-55%.
+	-- Bramka #1 (2026-08-18, deck=dokladnie tych 10, n=50): NAIVE 18%, FULL-SMART 58% -- PRZESTRZAL.
+	-- Galaxeon (mocMult 4.0 na Konwergencji) byl podejrzanym #1 wg przewidywania -- WYKLUCZONY przez
+	-- ablację (zjazd 4.0->1.0 przy n=50 dal identyczny wynik: 58%==58%, zero wplywu). Prawdziwi
+	-- winowajcy znalezieni sweepem ablacyjnym per-totem (n=20): oba SCALINGFLAT bez warunku
+	-- (condition="always") -- Vinelet (+10pp przy neutralizacji) i Shardmaw (+20pp przy neutralizacji,
+	-- razem +40pp) -- dokladnie ten sam wzorzec co Faza 3 runda 4 (skalujące bez limitu ciągną
+	-- late-game). Boltpup i Emberwing przetestowane ablacyjnie jako OBOJĘTNE (zero wpływu). Naprawa:
+	-- perTrigger obu ściętych o 50% (Vinelet 16->8, Shardmaw 24->12) -- przy n=20 dalo 45% (środek
+	-- widelek), potwierdzone przy n=50 ponizej. Galaxeon zostawiony na 3.5 (nieszkodliwa normalizacja
+	-- wzgledem reszty rosteru, nie jest przyczyną, nie ma powodu cofać).
+	pebblit = {
+		id = "pebblit",
+		name = "Pebblit",
+		tier = "Common",
+		element = "Nature",
+		phase = "onScore",
+		condition = "playContainsElement",
+		conditionArg = "Nature",
+		effect = { mocFlat = 20 },
+	} :: TotemDef,
+
+	sparkfly = {
+		id = "sparkfly",
+		name = "Sparkfly",
+		tier = "Common",
+		element = "Lightning",
+		phase = "onScore",
+		condition = "exactPlayedCount",
+		conditionArg = 1,
+		effect = { scalingFlat = { stat = "rez", perTrigger = 2 } },
+	} :: TotemDef,
+
+	puffcap = {
+		id = "puffcap",
+		name = "Puffcap",
+		tier = "Common",
+		element = "Nature",
+		phase = "onPlay",
+		condition = "always",
+		conditionArg = nil,
+		effect = { scalingGold = { perTrigger = 1 } },
+	} :: TotemDef,
+
+	frostnib = {
+		id = "frostnib",
+		name = "Frostnib",
+		tier = "Uncommon",
+		element = "Water",
+		phase = "onScore",
+		condition = "spellIs",
+		conditionArg = "Nawalnica",
+		effect = { rezMult = 2.7 },
+	} :: TotemDef,
+
+	vinelet = {
+		id = "vinelet",
+		name = "Vinelet",
+		tier = "Uncommon",
+		element = "Nature",
+		phase = "onScore",
+		condition = "always",
+		conditionArg = nil,
+		effect = { scalingFlat = { stat = "moc", perTrigger = 8 } },
+	} :: TotemDef,
+
+	boltpup = {
+		id = "boltpup",
+		name = "Boltpup",
+		tier = "Rare",
+		element = "Lightning",
+		phase = "onScore",
+		condition = "always",
+		conditionArg = nil,
+		effect = { mocMultElement = { element = "Lightning", factor = 2.7 } },
+	} :: TotemDef,
+
+	tidalox = {
+		id = "tidalox",
+		name = "Tidalox",
+		tier = "Rare",
+		element = "Water",
+		phase = "onScore",
+		condition = "spellIs",
+		conditionArg = "Echo",
+		effect = { scalingFlat = { stat = "rez", perTrigger = 2 } },
+	} :: TotemDef,
+
+	emberwing = {
+		id = "emberwing",
+		name = "Emberwing",
+		tier = "Epic",
+		element = "Fire",
+		phase = "onScore",
+		condition = "playedCountAtLeast",
+		conditionArg = 4,
+		effect = { mocMultElement = { element = "Fire", factor = 3.5 } },
+	} :: TotemDef,
+
+	shardmaw = {
+		id = "shardmaw",
+		name = "Shardmaw",
+		tier = "Epic",
+		phase = "onScore",
+		condition = "always",
+		conditionArg = nil,
+		effect = { scalingFlat = { stat = "moc", perTrigger = 12 } },
+	} :: TotemDef,
+
+	galaxeon = {
+		id = "galaxeon",
+		name = "Galaxeon",
+		tier = "Legendary",
+		phase = "onScore",
+		condition = "spellIs",
+		conditionArg = "Konwergencja",
+		effect = { mocMult = 3.5 },
+	} :: TotemDef,
 }
 
 return TotemConfig
