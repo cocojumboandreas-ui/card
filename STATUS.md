@@ -1,7 +1,14 @@
 # STATUS — Roll a Rune
 
-Ostatnia aktualizacja: 2026-08-17, koniec sesji Faza 2b (serwer + UI, w pelni zamkniete).
-Czytaj to + `git log` zamiast polegac na pamieci poprzedniej sesji.
+Ostatnia aktualizacja: 2026-08-18, koniec sesji Faza 4 (monetyzacja, w pelni zamknieta
+compliance-safe). Czytaj to + `git log` zamiast polegac na pamieci poprzedniej sesji.
+
+## Gdzie jestesmy (skrot dla nastepnej sesji)
+
+**Fazy 1-4 zrobione. Gra jest funkcjonalnie kompletna** (rdzen deckbuildera, kolekcja/roll,
+retencja D1/D7, monetyzacja Robux) **i zgodna z polityka Roblox Paid Random Items.**
+Nastepny krok to **Faza 5 — redesign wizualny** (patrz sekcja na samym dole pliku) — ostatnia
+faza przed soft launchem. Wszystko ponizej to historia/dowody, nie rzeczy do zrobienia teraz.
 
 ## Dyscyplina wywolan MCP (obowiazuje od 2026-08-17)
 
@@ -423,13 +430,101 @@ Weryfikacja live (solo playtest + `eval_server_runtime`/`eval_client_runtime`):
 tryb ranked, OfflineEarnService, LeaderboardService, StreakService, QuestService,
 AnnouncementService.
 
+## Faza 4 (monetyzacja) — ZAMKNIETA compliance-safe (2026-08-18)
+
+Wszystkie kroki zrobione i zweryfikowane live w solo-playteście (`eval_server_runtime`/
+`eval_client_runtime`, test-hooki `_XForTest`, nie klik-symulacja — `simulate_mouse_input`
+niepewny dla `TextButton.Activated` w tym srodowisku):
+
+- **Krok 0** (`f4cdeed`) — Start-of-run Totem Pick: `RunShopService.startPick`/`choosePick`,
+  pickSize 3 (ranked, neutralne) / 3-5 (free, gamepass +2 sloty), deterministyczny strumien
+  `run.streams.shop`.
+- **Krok 1** (`1bb7a94`) — `StatProfileService.Get(player, mode)`: `mode=="ranked"` nadpisuje
+  `extraPlays`/`extraSwaps`/`startPickSize` neutralna baza z `GameConfig.StatBase`, niezaleznie
+  od realnych zakupow/skilli gracza — p2w nie moze przeciekac do wyniku rankingowego.
+- **Krok 2** (`6fb23f2`) — `PurchaseService`: prawdziwy `ProcessReceipt`, idempotentny
+  (`profile.purchases.receipts[receiptId]` sprawdzany PRZED grantem, zapisywany PO), cache
+  `PlayerOwnsGamePassAsync` per-gracz odswiezany na `PlayerAdded` + po zakupie.
+- **Krok 3** (`c99a30c`) — gamepassy (VIP/EssenceX2/LuckX2/StartPickBonus/FastRolls) wpiete w
+  `StatProfileService.compute()`; bramka determinizmu z Fazy 3 rozszerzona o gracza z VIP —
+  nadal bit-identyczny wynik ranked.
+- **Krok 4** (`5df3754`) — `PolicyService.OddsTable()` (tiery liczone TA SAMA kaskada co
+  `RollService.selectTotem`, warianty 1:1 z `VariantConfig.ladder`, Void jawnie wykluczony,
+  pity osobno) + `MonetizationController` (katalog sklepu + gate tabeli szans przed promptem
+  zakupu luck-gamepassu).
+- **Krok 5** (`be0a4e6`) — `FTUEController`: 4 beaty onboardingu (GDD §2.7), zero nowej
+  mechaniki, tylko podpowiedzi dla `ftueDone==false`.
+- **Krok 4b** (`217324c`) — **fix po audycie compliance, patrz nizej.**
+
+### Audyt compliance (2026-08-17/18) — wynik 4 punktow
+
+Andreas zazadal audytu przed uznaniem Fazy 4 za zamknieta ("blad = moderacja Roblox kasuje
+gre"). Wynik:
+
+1. **Tabela szans sumuje sie do 100%, Void wykluczony, renderowana z tego samego configu co
+   roll** — PASS bez zmian (`VariantConfig.ladder`=100.0%, `PolicyService` czysty port kaskady
+   `RollService`, zero osobnej kopii liczb).
+2. **Idempotencja `ProcessReceipt`** — PASS bez zmian (receiptId sprawdzany przed grantem).
+3. **VIP/gamepass nie przeciekaja do ranked** — PASS bez zmian (Krok 1 fix + live-test z Kroku
+   3 bramki determinizmu).
+4. **Luka: tabela szans byla dostepna TYLKO przy zakupie luck-gamepassu, NIGDY przy samym
+   rollu za Esencje** — realny problem, bo roll za Esencje kupiona za Robux TO JEST paid random
+   item. **Naprawione Krokiem 4b.**
+
+### Krok 4b — fix (`217324c`, 2026-08-18)
+
+Decyzja Andreasa: **permanentny link, nie jednorazowy gate** (jednorazowy gate przy pierwszym
+rollu jest kruchy — gracz moze go przeklikac i zapomniec, kolejne sesje nie maja juz nic).
+
+- Nowy przycisk **"?"** w HUD, na stale tuz obok "Roll" (nie ukryty za innym UI, widoczny w
+  KAZDEJ sesji przed kazdym kliknieciem Roll).
+- Klik otwiera **ten sam modal** co gate zakupu (`MonetizationController.OpenOddsView()` ->
+  `openOddsModal(onConfirm=nil)`), tylko w trybie informacyjnym (przycisk "Zamknij" zamiast
+  "Kontynuuj do zakupu") — zero duplikatu logiki renderowania tabeli.
+- Przy okazji (audyt p.4): katalog sklepu pokazuje teraz czytelny opis efektu prosto z configu
+  (np. `EssencePackMedium (1200 Essence)`) zamiast samego klucza (`EssencePackMedium`) —
+  gracz wie ILE dostaje za Robux.
+
+Zweryfikowane live: przycisk "?" widoczny w HUD przed kazdym Roll (zrzut ekranu, ekran picku
+startowego totemu); `OpenOddsView()` renderuje liczby **identyczne** z serwerowym
+`PolicyService.OddsTable()` — Legendary 1.11%, Epic 3.30%, Rare 7.97%, Uncommon 10.95%, Common
+76.67% (suma 100%); Rainbow 0.1%, Galaxy 1%, Gold 4%, Foil 10%, Normal 84.9% (suma 100%); pity
+"gwarancja Epic po 40 rollach bez"; Void nie pojawia sie na liscie wariantow w ogole. Regresja
+gate'u zakupu (`LuckX2`) nadal dziala — `confirmBtnVisible=true`, "Anuluj".
+
+**Faza 4 (monetyzacja) ZAMKNIETA compliance-safe.**
+
+### Otwarte drobne (nie blokuja Fazy 5)
+
+- **Reparenting `Controllers` pod `Bootstrap` zyje TYLKO w Studio, nie w gicie** (patrz sekcja
+  "TWARDA REGULA" na gorze pliku) — projekt nie ma `project.json`, wiec hierarchia instancji
+  nie jest nigdzie zdeklarowana w kodzie. Ryzyko: odtworzenie placu od zera z gita da martwa
+  gre po stronie klienta bez zadnego widocznego bledu. Rozwazyc prawdziwy Rojo
+  (`project.json` + `rojo serve`) — to osobna decyzja architektoniczna, NIE podjeta.
+- **Zrzut ekranu runu w orientacji portret wciaz niedostarczony** (wszystkie dotychczasowe
+  zrzuty byly landscape/Studio-viewport) — do zrobienia gdy bedzie realny powod (np. przy
+  Fazie 5 review mobile-first designu).
+
+## Faza 5 — redesign wizualny (NASTEPNY KROK, jeszcze nie rozpoczety)
+
+Ostatnia faza przed soft launchem. Cala gra dzis to "brzydko-ale-dzialajaco" — kolorowe bloki
+z `UIFactory`, zero prawdziwego designu. Faza 5 to cukierkowy redesign wszystkich ekranow.
+
+**Jak zaczac (kolejnosc obowiazkowa):**
+
+1. Przeczytaj skill `frontend-design`.
+2. Przeczytaj `STWORKI.md` §A2, §A4, §A5 (wizualny kierunek/ton gry, zanim cokolwiek
+   zaprojektujesz).
+3. Zbuduj **SYSTEM DESIGNU** (tokeny kolorow/typografii/spacingu + komponenty: karta, przycisk,
+   modal, pasek, etykieta tieru) zakladany na **KOMPLET ekranow naraz**, NIE ekran-po-ekranie —
+   inaczej kazdy kolejny ekran wymysli wlasna paletke i spojnosc rozjedzie sie natychmiast.
+4. **Pokaz palete + wireframe Andreasowi ZANIM zaczniesz kodowac.** To nie jest opcjonalne —
+   redesign bez zatwierdzenia kierunku z gory to najdrozszy mozliwy blad w tej fazie (przerobka
+   calego UI, nie jednego pliku).
+
 ## Stan git
 
-- Branch `main`, w pelni zsynchronizowany z `origin/main` do commitu `49aac28`
-  (QuestService).
-- Biezacy batch AnnouncementService (`AnnouncementConfig.luau` nowy, `AnnouncementService.luau`
-  nowy, `AnnouncementController.luau` nowy, `Net.luau`, `Bootstrap.server.luau`,
-  `init.client.luau`, ten plik) zmieniony lokalnie + wypchniety do zywego Studio,
-  **jeszcze niescommitowany** — kolejny krok w tej sesji.
-- `git status` czysty poza tym batchem. `cardsw/` w `.gitignore`, nie pojawia sie juz jako
-  untracked.
+- Branch `main`, drzewo robocze czyste, w pelni zsynchronizowany z `origin/main` do commitu
+  `217324c` (Faza 4 krok #4b — ostatni commit calej Fazy 4).
+- `cardsw/` w `.gitignore`, nie pojawia sie jako untracked (raw art PNG, backup lokalny
+  wystarczy — patrz decyzja w sekcji Faza 2b UI wyzej).
