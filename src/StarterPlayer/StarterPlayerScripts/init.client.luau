@@ -17,6 +17,7 @@ local ORDER = {
 	"IndexController", -- Faza 2b: przed HudController (przycisk Indeks go woła), po UIRootController (root "Index")
 	"DeckController", -- MAX-SLOT: przed HudController (przycisk Talia go woła), po UIRootController (root "Deck")
 	"PlotController", -- T2 (pivot tycoon): otwierany przez ClickDetector w świecie, nie przycisk HUD; po UIRootController (root "Plot")
+	"EssenceTickController", -- T3 (pasywna esencja): juice na fontannie własnego plotu, niezależny od HUD-u, po PlotController (GetMyPlot)
 	"OfflineEarnController", -- Faza 3: po UIRootController (root "Toast"), niezależny od HUD-u
 	"AnnouncementController", -- Faza 3: po UIRootController (root "Toast"), niezależny od HUD-u
 	"HudController",

@@ -1,8 +1,8 @@
 # STATUS — Roll a Rune
 
 Ostatnia aktualizacja: 2026-08-19, **PIVOT: start przejscia z plaskiej karcianki na 3D
-COLLECTION-TYCOON** — patrz sekcje "Pivot na tycoon — T1 szkielet plotu" i "T2 przydzial plotow +
-wypelnianie slotow" (2026-08-19) ponizej.
+COLLECTION-TYCOON** — patrz sekcje "Pivot na tycoon — T1 szkielet plotu", "T2 przydzial plotow +
+wypelnianie slotow" i "T3 pasywna esencja online+offline" (2026-08-19) ponizej.
 Silnik/Stworki/paczki/merge/esencja z karcianki ZOSTAJA i wpinaja sie jako tresc, nic nie
 wyrzucone. Run/deckbuilder -> tryb wtorny na pozniej. Poprzedni stan (System 4 packi/daily/luck
 zablokowane na decyzji Andreasa o strukturze tabel) jest teraz W TLE, nie skasowany — patrz
@@ -169,6 +169,78 @@ nie w gicie) i caly poprzedni przebieg zostawil nowe instancje (MergeConfig/Merg
 DeckController jako zywe ModuleScripty, `PlotTemplate` w ServerStorage) tylko w pamieci
 DataModelu. Bez zapisu placu wszystko to znika przy nastepnym restarcie Studio i rozjazd
 dysk<->Studio wraca.
+
+## Pivot na tycoon — T3 pasywna esencja online+offline (2026-08-19)
+
+**Plan (zatwierdzony przed kodem):** stawka = suma esencja/sek wystawionych kart wg tieru
+(`EssenceRateConfig.TierRatePerHour`, rodzenstwo `TierColorConfig`), zsumowana przez
+`PlotService.RatePerSecond(profile.plotSlots)` — JEDYNE zrodlo, czytane identycznie i online
+(`EssenceTickService`, tyk co 5s) i offline (`OfflineEarnService`, na `ProfileLoaded`), ta sama
+dyscyplina co `TotemPool.sorted()` przy odds-bug fixie. Zadnych nowych pol profilu —
+`profile.offlineTs` (serwerowy `os.time()`, stemplowany w `ProfileService.onPlayerRemoving` PRZED
+`EndSession`) i `profile.plotSlots` (z T2) w pelni wystarczaja.
+
+**Stawki (TUNING-PENDING, jak `MergeConfig` 50/150/30):**
+
+| Tier | esencja/h za karte |
+|---|---|
+| Common | 2 |
+| Uncommon | 5 |
+| Rare | 12 |
+| Epic | 30 |
+| Legendary | 75 |
+
+Skala pelnego plotu (10 slotow): **10x Common = 20 esencji/h** (okolica starego flat
+offline-bonusu), **10x Legendary = 750 esencji/h** (~15 rolli/h przy `RollCostEssence=50`) —
+hojne nagrodzenie kolekcji, ale nie zeruje sensu aktywnego rollowania. Strojenie na danych z
+playtestu, NIE w ciemno — flaga zostaje w naglowku `EssenceRateConfig.luau`.
+
+**Wariant foil/galaxy mnoznik — swiadomie ODLOZONY**, wbrew warunkowemu "jesli tanie": NIE jest
+tani, bo `profile.plotSlots[i]` (T2) trzyma wylacznie `totemId`, zero sledzenia wariantu per-slot
+— dodanie wymagaloby zmiany kontraktu `SetPlotSlot`, UI `PlotController` i schematu `plotSlots`.
+Do rozwazenia jako oddzielne zadanie, nie w zakresie T3.
+
+**Dwie gotchy zlapane na etapie projektu (nie live-testem):**
+1. Roblox nie odpala `AttributeChangedSignal`, gdy nowa wartosc atrybutu == stara — stad
+   `EssenceGenerator.LastTickSeq` (rosnacy licznik) obok `LastTickAmount`, wylacznie po to zeby
+   klient dostal sygnal nawet przy dwoch identycznych tykach z rzedu.
+2. Ulamkowa stawka x krotki tyk (`TickIntervalSeconds=5`) floorowalaby do zera w nieskonczonosc
+   dla pojedynczej Common karty — stad akumulator ulamkowy per gracz (`_pending`) w
+   `EssenceTickService`, przenoszacy reszte do nastepnego tyku zamiast gubic ja co tyk.
+
+**Acceptance check — wszystkie 3 PASS, zweryfikowane live w Studio (`eval_server_runtime`, solo
+playtest):**
+
+a) **Online tempo** — wystawione 5 kart (Common+Uncommon+Rare+Epic+Legendary =
+`rate=124/3600=0.034444.../s`), 200x `EssenceTickService._TickPlayerForTest` (=1000s symulowanego
+czasu) -> esencja przyrosla o **34** = `floor(1000*0.034444...)=floor(34.444)=34` DOKLADNIE —
+akumulator ulamkowy dziala matematycznie poprawnie, nie tylko "wyglada ok".
+
+b) **Offline przyznanie + cap** — `OfflineEarnService._ComputeOfflineRawForTest` (pure, ten sam
+kod co produkcyjny) z `plotRate=124/3600`, 4 przypadki:
+   - first-login (`offlineTs=0`) -> `raw=0` (brak zarobkow od epoki 1970, jak oczekiwano).
+   - 2h offline, bez capu -> `raw=248` = `7200*0.034444...` DOKLADNIE.
+   - 30h offline, `CapHours=10` -> `raw=1240` liczone z `seconds=36000` (10h), NIE z 30h —
+     cap realnie tnie elapsed, nie tylko deklaruje ze tnie.
+   - clock-skew (`offlineTs` w przyszlosci) -> `raw=0`, nie ufa cofnietemu zegarowi.
+
+c) **Esencja nie dotyka ranked** — potwierdzone grepem tej sesji: zero wystapien
+`RunShop|Ranked|rankedTotemPool` w `EssenceTickService.luau`, `PlotService.luau` i
+`OfflineEarnService.luau`. Passive essence zasila wylacznie progresje/tycoon; `RunShopService.
+rankedTotemPool` (jak przy odds-bug fixie) czyta tylko stala `RankedConfig.TotemIds`.
+
+**Strażnik ORDER-desync potwierdzony zielony** po dolozeniu `EssenceTickService` — swiezy solo
+playtest pokazal kompletna sekwencje Init/Start dla wszystkich 21 serwisow (`EssenceTickService`
+na wlasciwym miejscu, po `PlotService`, przed `DeckService`), zero `error()` z straznika.
+
+**Andreas: Ctrl+S w Studio** — T3 push (3 nowe ModuleScripty: `EssenceRateConfig`,
+`EssenceTickService`, `EssenceTickController`, + 6 edytowanych plikow) zyje tylko w zywym
+DataModelu dopoki plac nie zapisany, jak przy T1/T2.
+
+**Celowo NIE zrobione w T3:** wariant-mnoznik (patrz wyzej), wizualna fontanna/juice na plotach
+CUDZYCH graczy (tylko wlasny, jak `PlotController`), realny multi-minutowy playtest z prawdziwym
+uplywem czasu (acceptance zweryfikowany przez `_TickPlayerForTest`/`_ComputeOfflineRawForTest` —
+ten sam kod co produkcyjny, ale nie "czekalem realnie X minut").
 
 ## Odds-bug fix (compliance, 2026-08-18)
 

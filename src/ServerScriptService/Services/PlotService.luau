@@ -24,6 +24,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Configs")
 local TotemConfig = require(Shared:WaitForChild("TotemConfig"))
 local CardArtConfig = require(Shared:WaitForChild("CardArtConfig"))
 local TierColorConfig = require(Shared:WaitForChild("TierColorConfig"))
+local EssenceRateConfig = require(Shared:WaitForChild("EssenceRateConfig"))
 
 local PlotService = {}
 
@@ -161,6 +162,27 @@ function PlotService.SetPlotSlot(player: Player, slotIndex: any, totemId: any): 
 		renderSlot(plotModel, slotIndex, clean)
 	end
 	return { ok = true }
+end
+
+-- T3 (pasywna esencja): suma stawek esencja/sek wszystkich wystawionych kart (pusty slot = brak
+-- wpisu = 0). Pure, testowalna bez profilu/instancji -- czyta WYŁĄCZNIE TotemConfig +
+-- EssenceRateConfig, żeby EssenceTickService (online) i OfflineEarnService (offline) liczyły
+-- zawsze z tej samej stawki, nigdy dwóch rozjeżdżających się kopii.
+function PlotService.RatePerSecond(plotSlots: { [number]: string? }): number
+	local total = 0
+	for _, totemId in pairs(plotSlots or {}) do
+		local totem = totemId and totemId ~= "" and TotemConfig.Totems[totemId :: string]
+		if totem then
+			total += EssenceRateConfig.tierRatePerSecond(totem.tier)
+		end
+	end
+	return total
+end
+
+-- Żywa instancja plotu gracza (Workspace.Plots.Plot_<id>) lub nil -- używane przez
+-- EssenceTickService do ustawienia atrybutu juice na EssenceGenerator.
+function PlotService.GetPlotModel(player: Player): Model?
+	return _playerPlot[player]
 end
 
 function PlotService.Init() end

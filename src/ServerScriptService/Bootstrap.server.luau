@@ -26,6 +26,7 @@ local ORDER = {
 	"OfflineEarnService", -- Faza 3: zależy tylko od Profile/Stat/Economy, zero zależności od runu
 	"IndexService",
 	"PlotService", -- T2 (pivot tycoon): przydział plotów + wypełnianie slotów, zależy tylko na odczyt (get) ProfileService/IndexService, poza-runowa meta jak Deck
+	"EssenceTickService", -- T3 (pasywna esencja): online tyk z PlotService.RatePerSecond, zależy tylko na odczyt (get) Profile/Economy/Plot
 	"DeckService", -- MAX-SLOT: GetDeck/SetDeck, zależy tylko na odczyt (get) ProfileService/IndexService, wymagany PRZED RunShopService
 	"RollService",
 	"MergeService", -- System 3: merge/disenchant kolekcji, zależy na odczyt (get) Profile/Economy/Index, poza-runowa meta jak Roll

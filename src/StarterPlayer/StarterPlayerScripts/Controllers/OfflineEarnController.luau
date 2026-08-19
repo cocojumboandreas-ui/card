@@ -1,8 +1,9 @@
 --!strict
--- Controllers/OfflineEarnController.luau (Faza 3) — popup "+N Esencji za czas offline". Brzydko-ale-
--- działająco: jeden panel w root "Toast" (UIRootController), auto-znika po kilku sekundach albo na
--- klik. Serwer wysyła OfflineEarnings TYLKO gdy essence>0 (patrz OfflineEarnService.Start), więc
--- kontroler nie musi sam filtrować zera.
+-- Controllers/OfflineEarnController.luau (Faza 3; T3 2026-08-19: kopia zaktualizowana pod pasywną
+-- esencję z kart) — popup "Twoje karty zarobiły +N Esencji" za czas offline. Brzydko-ale-działająco:
+-- jeden panel w root "Toast" (UIRootController), auto-znika po kilku sekundach albo na klik. Serwer
+-- wysyła OfflineEarnings TYLKO gdy essence>0 (patrz OfflineEarnService.Start), więc kontroler nie
+-- musi sam filtrować zera -- w tym pustego plotu (essence=0, brak popupu, zgodnie ze spec).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -21,7 +22,7 @@ local function showToast(gui: ScreenGui, essence: number)
 		Position = UDim2.new(0.5, -160, 0, 24),
 		BackgroundColor3 = Color3.fromRGB(24, 24, 30),
 	})
-	UIFactory.label(panel, `Offline: +{essence} Esencji`, {
+	UIFactory.label(panel, `Witaj z powrotem! Twoje karty zarobiły +{essence} Esencji`, {
 		Size = UDim2.new(1, -16, 1, -16),
 		Position = UDim2.new(0, 8, 0, 8),
 		TextColor3 = Color3.fromRGB(255, 196, 61),
