@@ -728,6 +728,68 @@ tego przebiegu. Bez zapisu placu wszystko znika przy nastepnym restarcie Studio.
 **Poza zakresem (kolejny przebieg, kierunek do decyzji Andreasa):** stragan -> otwarcie sklepu
 paczek, portal -> wejscie do biegu, spawn/inne podpiecia.
 
+## HUB/Swiat — detoks neonu, miekkie pastele (2026-08-19, piaty przebieg)
+
+**Problem od Andreasa: "za duzo neonu, wszystko razi/swieci" — cel miekki/kojacy koncept, nie
+neonowka.** Policzone przed zmiana (`Material==Neon` po calym `Workspace.Hub` +
+`ServerStorage.PlotTemplate`): **415 Neon-owych Partow.** Zdecydowana wiekszosc to byly
+dekoracyjne krawedzie/trimy/rampy/klastry, ktore nigdy nie mialy byc realnymi zrodlami swiatla —
+material Neon uzyty jako "latwy blask" zamiast koloru.
+
+**Regula (1:1 wg Andreasa):** Neon zostaje WYLACZNIE tam, gdzie jest to faktyczne, celowe zrodlo
+swiatla w koncepcie — kryształ fontanny placu (`Plaza.Fountain.CrystalSpike1-3`/`Shard1-5`) i
+"fontanna" kazdego plotu (`EssenceGenerator`, ktora T3 juz nazywa fontanna w kodzie/dokumentacji) —
+plus opcjonalny delikatny akcent ramek kart (`RarityGlow`, teraz z `Transparency=0.15` i
+przycisznieta barwa, nie pelny blask). **WSZYSTKO INNE przekonwertowane** wg kategorii:
+- Zlote krawedzie/trimy/rampy/filary (`Rail`/`PlazaTrim`/`Baseboard`/`Beam`/`Cap`/
+  `FootprintRing`/`TrimN-W`/`WallGlow`/`ArchTrim`) -> **Metal**, kolor stlumiony
+  kremowo-zloty (~18% w strone bieli od oryginalu) — kolor, nie swiecenie, jak zazadal Andreas.
+- Koralowe/roslinne akcenty (`Backrest`/`C1-C3`/`Nub`) -> **SmoothPlastic**, kolor lekko
+  stlumiony (~15%).
+- Cyjanowe paski/obwodki (`Stripe` na rampach, `GlowN-W` na podlodze plotu) -> **SmoothPlastic**,
+  jednolity pastelowy blekit (196,224,236) zamiast jaskrawego cyjanu.
+- Dekoracja placu (`Decor.Bud`/`Decor.Shard`) -> **SmoothPlastic**, stlumione (~30%).
+- `AnchorMarker` (techniczny znacznik pivotu, nigdy nie mial byc widoczny) -> niewidoczny
+  (`Transparency=1`), material bez znaczenia.
+- `Portal.Vortex` i `Shop.PackGlow` -> **Glass** (transparency 0.25-0.35, kolor stlumiony) zamiast
+  plaskiego neonowego bloku — miekki/mglisty efekt zamiast twardej jarzeniowki, spojny z "portal =
+  cos mistycznego", nie "portal = neonowy szyld".
+
+**Zlapany blad podczas konwersji:** pierwsza wersja skryptu sprawdzala `Fountain`-owe kryształy po
+`d.Parent.Name=="Plaza"`, ale realny rodzic to `Plaza.Fountain` (jeden poziom glebiej) — wszystkie
+8 elementow kryształu fontanny wpadlo przez to w fallback-konwersje (utracily Neon). Zlapane od
+razu przez `get_full_name`/material-audit PO konwersji (spodziewane keptNeon=107 z rozbicia
+90 RarityGlow + 9 EssenceGenerator + 8 fontanna, faktyczny wynik pokazal 99 — brakujace 8 to byl
+dokladnie fountain). Naprawione: 8 elementow przywroconych na Neon z oryginalnym (nie podwojnie
+stlumionym) kolorem x0.85.
+
+**Koncowy stan:** Neon spadl z **415 -> 107** Partow (kryształ fontanny placu x8, `EssenceGenerator`
+x9 [8 kotwic + 1 w `PlotTemplate`], `RarityGlow` x90 [8 kotwic x10 slotow + 10 w `PlotTemplate`]) —
+wylacznie prawdziwe/celowe zrodla swiatla plus jeden zamierzony, przycisznity akcent.
+
+**Oswietlenie globalne** (`Lighting`): `Bloom.Intensity` 0.55 -> **0.28**, `Bloom.Threshold` 1.15
+-> **1.45** (blooms tylko naprawde jasne rzeczy, nie kazda pastelowa powierzchnia),
+`Bloom.Size` 26 -> 20; `SunRays.Intensity` 0.18 -> **0.10**; `Lighting.Brightness` 2.2 -> **1.9**
+(miekciejsze, mniej "wypalone" swiatlo). Dodatkowo audyt 21 `PointLight` pod Hub+PlotTemplate —
+przycisk kazdego z `Brightness>2` do 2 i `Range>18` do 18 (1 outlier znaleziony i przycieciety),
+zeby zdjete-z-neonu trimy nie zostaly przypadkiem "podswietlone" przez stara, mocna lampe
+zaprojektowana pod neonowy blask.
+
+**Zrzut ekranu: NIEUDANY** — okno Studio bylo zminimalizowane/niewidoczne przez cala sesje
+(`capture_screenshot` i `simulate_keyboard_input` obie zwrocily ten sam blad narzedzia: "Studio
+window appears minimized or not rendering"). Zmiany zweryfikowane WYLACZNIE programowo
+(material-audit przed/po, pelne wyliczenie pozostalych 107 Neonow z rozbiciem po nazwie) — **nie
+zrzutem wizualnym**. Andreas: przywroc/odswiez okno Studio i zrob wlasny zrzut jesli chcesz
+wizualne potwierdzenie przed dalsza praca.
+
+**Andreas: Ctrl+S w Studio.** Caly ten przebieg (material/kolor 415 Partow pod `Workspace.Hub` +
+`ServerStorage.PlotTemplate`, 5 property'ow `Lighting`, cap na 21 `PointLight`) zyje wylacznie w
+zywym DataModelu — zero zmian w `src/`, zero commita kodu, wpis w STATUS.md ponizej to caly
+"commit" tego przebiegu.
+
+**Poza zakresem / nastepny krok:** oddzielne zgloszenie Andreasa o "schodach"/przesunieciu mapy —
+patrz nizej, osobny watek w toku.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
