@@ -428,6 +428,99 @@ plac nie zapisany, jak przy T1-T4.
 **To domyka grywalny MVP tycoona.** Nastepny krok: T4b (luck) i dostrajanie liczb — po tym, na
 danych z playtestu (decyzja Andreasa, nie w zakresie T5).
 
+## HUB/Swiat — build wizualny placu centralnego (2026-08-19)
+
+**Zakres tego przebiegu: WYLACZNIE build, zero logiki.** Cel: wyjsc z pustki (Baseplate + jeden
+SpawnLocation na goloborzu) do realnego, ladnego miejsca — pastelowy plac centralny z fontanna,
+8 kotwic pod plotow, stragan, portal. Kolejnosc i zakres 1:1 wg zlecenia Andreasa (5 krokow,
+zrzut ekranu po kroku 2 i na koncu).
+
+**WARUNEK #0 — POTWIERDZAM: realne Party, nie runtime.** Cala geometria ponizej zostala
+zbudowana przez `robloxstudio` MCP `execute_luau` z `target="edit"` — to jest wykonanie w
+kontekscie pluginu Studio (edit mode), DOKLADNIE jak reczne klikanie w Properties/Explorer, NIE
+Script uruchamiany w grze. Zaden `Script`/`LocalScript` nie zostal po sobie zostawiony — po
+uruchomieniu narzedzia zostaja wylacznie `Part`/`Model`/`Folder`/`ParticleEmitter`/`PointLight`/
+`Attachment`, czyli zwykle trwale instancje w DataModelu, identyczne z natury do `PlotTemplate` z
+T1. Zweryfikowane na koniec przez `get_instance_children` na `Workspace.Hub` — same Foldery i ich
+dzieci, zero Script gdziekolwiek w drzewie huba. Jedyna rzecz runtime to (jak dotychczas) to,
+KTORE karty siedza na slotach danego gracza (T2 mechanika) — geometria sama w sobie stoi w
+edytorze i przetrwa Ctrl+S.
+
+**Krok 1 — zabicie pustki (niebo/swiatlo).** Bez wlasnego tekstury skybox (zeby nie zgadywac
+Toolbox ID) — pastelowy nastroj zbudowany z tuningu `Lighting`/`Atmosphere`/`Sky`/`Bloom`/
+`SunRays`/`DepthOfField` (ClockTime=7.5, rozowo-lawendowe ColorShift/Fog/Atmosphere, delikatny
+bloom) + 18 chmur (`Workspace.Hub.SkyDecor.Cloud1..18`, po 3-5 `Ball` Partow "Puff" w pastelowych
+kolorach) rozrzuconych petla wokol horyzontu. Domyslny `Baseplate` NIE skasowany — przemianowany
+i przeksztalcony na `CloudSea` (3000x20x3000, Y=-260, SmoothPlastic bardzo jasny rozowy,
+Transparency=0.15): siatka bezpieczenstwa pod wyspami + widoczne "morze chmur" przy spojrzeniu w
+dol. `DepthOfFieldEffect` NIE ma `FarStart` (tylko `FarIntensity`/`InFocusRadius`/
+`NearIntensity`/`FocusDistance`) — bledna wlasciwosc usunieta z pierwszej probki.
+
+**Krok 2 — plac centralny + fontanna (zrzut zrobiony).** `Workspace.Hub.Plaza`: okragla podloga
+kamienna (`PlazaFloor`, Slate, fiolet-blekit, promien 48) + zloty rabek (`PlazaTrim`, Neon,
+promien 52). Fontanna-landmark (`Fountain` Model): basen (Glass, cyjanowa woda,
+Transparency=0.3) + 3-segmentowy krysztal (Neon, gradient blekit->cyjan, obrocony 45st) +
+`PointLight` cyjan na szczycie + `ParticleEmitter` (iskry, `rbxasset://textures/particles/
+sparkles_main.dds`) + 5 satelickich odlamkow wokol basenu. 6 lawek (Marble siedzisko + koralowe
+oparcie) rozstawionych co 60 stopni na promieniu 34. 10 klastrow koralowych akcentow (male
+`Ball` Party, Neon+SmoothPlastic, rozne odcienie koralu) rozrzucone petla w pierscieniu 28-44.
+`SpawnLocation` przesuniety na plac (Marble, kolor kremowo-zloty, `CFrame=(0,0.5,40)` patrzy w
+strone fontanny) — gracz laduje w hubie, nigdy w pustce ani w biegu.
+
+**Blad po drodze i fix:** `ParticleEmitter.Lifetime`/`.Speed` uzywaly bledngo konstruktora
+`NumRange.new(...)` (literowka — poprawny typ Roblox to `NumberRange`, nie `NumRange`) —
+`attempt to index nil with 'new'` bo `NumRange` jako globalna nazwa po prostu nie istnieje.
+Naprawione na `NumberRange.new(...)`, caly skrypt Kroku 2 zaczyna sie od `plaza:ClearAllChildren()`
+wiec ponowne uruchomienie w calosci bylo bezpieczne/idempotentne.
+
+**Krok 3 — przemalowanie `PlotTemplate` na motyw Ocean.** Edytowany bezposrednio
+`ServerStorage.PlotTemplate` (ten sam wzorzec kontraktu nazw z T1, zero zmian strukturalnych):
+`Floor`/`BackWall` -> Slate fiolet-blekit (spojne z podloga placu), `EssenceGenerator` -> Neon
+cyjan (spojny z krysztalem fontanny), `Nameplate` -> kremowo-zloty SmoothPlastic,
+`EntranceArch` piloty -> Slate fiolet-blekit, `Beam` -> zloty Neon (spojny z rabkiem placu).
+Swiecace ramki kart (`CardFrame`/`RarityGlow`/`RarityBorder`) i sama struktura slotow **NIE
+ruszane** — to one nosza karty Stworkow, poza zakresem tego przebiegu.
+
+**Krok 4 — layout: 8 kotwic + mostki + stragan + portal.**
+Plan reconciliacji z PlotService (napisany PRZED zmiana, zgodnie z instrukcja): `PlotService`
+dzis liczy siatke 4x2 sam (`buildGridCFrames`, stale `GRID_BASE_X/Z/GRID_COLS/GRID_SPACING`) i
+NIE czyta zadnych autorskich pozycji. W tym przebiegu polozone zostaly WYLACZNIE kotwice —
+`Workspace.Hub.PlotAnchors.PlotAnchor1..8` (Model: `Pad` kamienny + `FootprintRing` zloty
+placeholder odcisku plotu + `AnchorMarker` z atrybutem `Index`), promien 150 od placu, co 45
+stopni (offset 22.5 zeby zadna nie stala dokladnie na osi spawnu), CFrame kazdej patrzy lokalnym
++Z do centrum (konwencja `Nameplate` z T1). Swiadomie NIE sklonowano pelnego `PlotTemplate` na
+kazdej kotwicy — `PlotService.allocatePlot` i tak klonuje `PlotTemplate` do
+`Workspace.Plots.Plot_<id>` w runtime (folder `Plots` jest tworzony na starcie serwera, nie
+istnieje w edit-mode), wiec pelna geometria na kotwicy dublowalaby sie z live-klonem.
+**Nastepny przebieg:** podmienic `buildGridCFrames()` w `PlotService.luau` na odczyt CFrame'ow
+z `Hub.PlotAnchors.PlotAnchor1..8` (po atrybucie `Index`) zamiast liczenia siatki — to jedyna
+zmiana potrzebna w kodzie serwisu, poza zakresem tego przebiegu (build-only).
+Kazda kotwica polaczona z krawedzia placu mostkiem (`Workspace.Hub.Bridges.Bridge1..8`:
+WoodPlanks + 2 zlote poreczki Neon). Stragan z paczkami (`Workspace.Hub.Shop`: blat+markiza+2
+slupy+swiecaca kula) postawiony blisko spawnu (promien 62, luka miedzy kotwicami). Portal
+(`Workspace.Hub.Portal`: kamienny luk + fioletowy wir Neon z iskrami + `PointLight`) na wprost od
+spawnu przez plac (promien 80, po przeciwnej stronie).
+
+**Krok 5 — lekka dekoracja.** `Workspace.Hub.Decor`: 34 male klastry (krysztalki/roslinki/
+korale, 3 warianty) rozrzucone petla w pierscieniu 56-144 studow, z unikaniem katow mostkow/
+straganu/portalu (+-9 stopni), ten sam wzorzec petli co chmury z Kroku 1. Spody wysp POMIJANE
+zgodnie z instrukcja.
+
+**Zrzuty ekranu:** zrobione po Kroku 2 (plac+fontanna z bliska) i na koncu (widok z gory —
+"kwiat" 8 mostkow, i widok kątowy — plac+portal+stragan+niebo). Oba pokazane Andreasowi w tej
+sesji.
+
+**Andreas: Ctrl+S w Studio.** Caly ten build (Hub/Plaza/PlotAnchors/Bridges/Shop/Portal/Decor/
+SkyDecor + CloudSea + Lighting + przemalowany PlotTemplate) zyje WYLACZNIE w zywym DataModelu —
+zaden plik repo nie zmienil sie (build byl w 100% przez Studio MCP, nie przez `src/`), wiec nie
+ma tu commita kodu — commit ponizej to wylacznie ten wpis w STATUS.md. Bez zapisu placu caly
+Hub znika przy nastepnym restarcie Studio.
+
+**Poza zakresem tego przebiegu (nastepny przebieg):** podpiecie spawn=dom (funkcjonalnie juz
+dziala, bo `SpawnLocation` po prostu tam stoi), reconciliacja pozycji `PlotService` z 8
+kotwicami (plan opisany wyzej), stragan -> otwarcie sklepu paczek, portal -> wejscie do biegu.
+To byl przebieg czysto wizualny/geometryczny.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
