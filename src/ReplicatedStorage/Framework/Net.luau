@@ -65,6 +65,9 @@ local REMOTES: { [string]: string } = {
 	-- T2 (tycoon pivot): przydział plotów + wypełnianie slotów (PlotService)
 	GetMyPlot = "RemoteFunction", -- C->S () -> {ok, plotModel:Model?} -- referencja do żywej instancji plotu gracza w Workspace; nil dopóki alokacja (async, po ProfileLoaded) nie dobiegnie -- klient retry'uje
 	SetPlotSlot = "RemoteFunction", -- C->S (slotIndex:number, totemId:string?) -> {ok, reason?} -- totemId=nil/"" czyści slot; serwer sam znajduje plot gracza, nigdy nie ufa referencji od klienta
+
+	-- T5 (odwiedziny): lajkowanie cudzego plotu (PlotService)
+	LikePlot = "RemoteFunction", -- C->S (ownerUserId:number) -> {ok, likes?, reason?} -- reason: NoProfile|SelfLike|NoPlot|AlreadyLiked; raz/dzień per (liker,owner), serwer sam rozwiązuje oba profile
 }
 
 local Net = {}

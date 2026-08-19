@@ -12,12 +12,22 @@
 -- przejście przez remote działa) -- alokacja jest async po ProfileLoaded, więc retry z odstępem
 -- zamiast jednego strzału.
 
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+
 local UIFactory = require(script.Parent.UIFactory)
 local UIRootController = require(script.Parent.UIRootController)
 local NetController = require(script.Parent.NetController)
 
 local SLOT_COUNT = 10
 local CLICK_MAX_DISTANCE = 64 -- plot 64x64, gracz może stać w dowolnym rogu
+
+local LIKE_FAIL_TEXT = {
+	SelfLike = "To Twój plot",
+	AlreadyLiked = "Już dziś polubione",
+	NoPlot = "Plot niedostępny",
+	NoProfile = "Błąd",
+}
 
 local PlotController = {}
 
@@ -157,6 +167,88 @@ local function wireSlotClickDetectors(plotModel: Model)
 	end
 end
 
+-- T5 (odwiedziny) — juice "za darmo" na kliknięcie Nameplate, wzorzec 1:1 z
+-- EssenceTickController.spawnPopup (BillboardGui + tween, 3D-zaczepiony na Part).
+local function spawnLikePopup(part: BasePart, text: string, color: Color3)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 160, 0, 40)
+	billboard.StudsOffset = Vector3.new(0, 2, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = part
+
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.fromScale(1, 1)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = text
+	lbl.TextColor3 = color
+	lbl.Font = Enum.Font.GothamBlack
+	lbl.TextScaled = true
+	lbl.Parent = billboard
+
+	local moveTween = TweenService:Create(billboard, TweenInfo.new(1.1, Enum.EasingStyle.Quad), {
+		StudsOffset = Vector3.new(0, 6, 0),
+	})
+	local fadeTween = TweenService:Create(lbl, TweenInfo.new(1.1, Enum.EasingStyle.Quad), {
+		TextTransparency = 1,
+	})
+	moveTween:Play()
+	fadeTween:Play()
+	fadeTween.Completed:Connect(function()
+		billboard:Destroy()
+	end)
+end
+
+local function onLikeClick(plotModel: Model, nameplate: BasePart)
+	local ownerUserId = plotModel:GetAttribute("OwnerUserId")
+	if type(ownerUserId) ~= "number" then
+		return
+	end
+	local ok, res = NetController.Invoke("LikePlot", ownerUserId)
+	if ok and type(res) == "table" and res.ok then
+		spawnLikePopup(nameplate, `+1 \u{2764}`, Color3.fromRGB(255, 90, 110))
+	else
+		local reason = (ok and type(res) == "table" and res.reason) or "błąd"
+		spawnLikePopup(nameplate, LIKE_FAIL_TEXT[reason] or reason, Color3.fromRGB(200, 200, 100))
+	end
+end
+
+-- Wpina ClickDetector na Nameplate KAŻDEGO plotu (własny + cudze -- SelfLike odrzuca serwer, nie
+-- filtrujemy po stronie klienta). Workspace.Plots to zwykły globalny Folder, replikuje się bez
+-- żadnego remote'u (T2 "replikacja za darmo").
+local function wireNameplate(plotModel: Model)
+	local nameplate = plotModel:FindFirstChild("Nameplate")
+	if not (nameplate and nameplate:IsA("BasePart")) then
+		return
+	end
+	local part = nameplate :: BasePart
+	local detector = part:FindFirstChildOfClass("ClickDetector") or Instance.new("ClickDetector")
+	detector.MaxActivationDistance = CLICK_MAX_DISTANCE
+	detector.Parent = part
+	detector.MouseClick:Connect(function()
+		onLikeClick(plotModel, part)
+	end)
+end
+
+local function wireAllPlots()
+	task.spawn(function()
+		local plotsFolder = Workspace:WaitForChild("Plots", 30)
+		if not plotsFolder then
+			warn("[PlotController] Workspace.Plots: brak po 30s")
+			return
+		end
+		for _, child in plotsFolder:GetChildren() do
+			if child:IsA("Model") then
+				wireNameplate(child)
+			end
+		end
+		plotsFolder.ChildAdded:Connect(function(child)
+			if child:IsA("Model") then
+				wireNameplate(child)
+			end
+		end)
+	end)
+end
+
 local function waitForMyPlot()
 	task.spawn(function()
 		for _ = 1, 30 do
@@ -218,6 +310,7 @@ function PlotController.Start()
 	gridLayout.Parent = _grid
 
 	waitForMyPlot()
+	wireAllPlots()
 end
 
 return PlotController

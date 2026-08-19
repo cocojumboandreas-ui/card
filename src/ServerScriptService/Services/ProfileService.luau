@@ -41,6 +41,9 @@ local PROFILE_TEMPLATE = {
 	plotSlots = {}, -- T2 (tycoon pivot): [slotIndex:1..10] = totemId wystawiony w PlotService; sparse,
 	-- wzorzec jak streak.claimed. Wystawienie NIE konsumuje karty -- to referencja, count w `totems`
 	-- się nie zmienia.
+	plotLikes = 0, -- T5 (odwiedziny): trwały licznik lajków OTRZYMANYCH na plocie tego gracza
+	plotLikesGiven = {}, -- T5: [ownerUserIdStr] = dateKey ostatniego lajka DANEGO temu właścicielowi;
+	-- anti-spam po stronie dającego, wzorzec jak streak.claimed/lastDateKey (SeedService.DailyKey)
 	offlineTs = 0,
 	ftueDone = false,
 	purchases = { receipts = {} }, -- idempotencja ProcessReceipt

@@ -11,9 +11,8 @@
 -- Scoping: WŁASNY plot gracza (jak PlotController) -- podgląd fontann cudzych plotów to
 -- rozszerzenie na później, nie w zakresie T3.
 
+local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
-
-local NetController = require(script.Parent.NetController)
 
 local EssenceTickController = {}
 
@@ -75,31 +74,44 @@ local function onTick(gen: BasePart)
 	end
 end
 
-local function waitForOwnGenerator()
+-- T5 (odwiedziny): WSZYSTKIE plotów fontanny, nie tylko własna -- tanie, bo LastTickAmount/
+-- LastTickSeq to zwykłe atrybuty ustawiane serwerowo dla KAŻDEGO gracza w EssenceTickService pętli
+-- i tak już replikują się na cały Workspace.Plots (T2 "replikacja za darmo"); zmienia się tylko
+-- sposób odkrycia po stronie klienta (folder-scan zamiast pojedynczego GetMyPlot).
+local function wireGenerator(plotModel: Model)
+	local gen = plotModel:FindFirstChild("EssenceGenerator")
+	if gen and gen:IsA("BasePart") then
+		local part = gen :: BasePart
+		part:GetAttributeChangedSignal("LastTickSeq"):Connect(function()
+			onTick(part)
+		end)
+	end
+end
+
+local function wireAllGenerators()
 	task.spawn(function()
-		for _ = 1, 30 do
-			local ok, res = NetController.Invoke("GetMyPlot")
-			if ok and type(res) == "table" and res.ok and res.plotModel then
-				local plotModel = res.plotModel :: Model
-				local gen = plotModel:FindFirstChild("EssenceGenerator")
-				if gen and gen:IsA("BasePart") then
-					local part = gen :: BasePart
-					part:GetAttributeChangedSignal("LastTickSeq"):Connect(function()
-						onTick(part)
-					end)
-				end
-				return
-			end
-			task.wait(1)
+		local plotsFolder = Workspace:WaitForChild("Plots", 30)
+		if not plotsFolder then
+			warn("[EssenceTickController] Workspace.Plots: brak po 30s")
+			return
 		end
-		warn("[EssenceTickController] GetMyPlot: brak plotu po 30 próbach")
+		for _, child in plotsFolder:GetChildren() do
+			if child:IsA("Model") then
+				wireGenerator(child)
+			end
+		end
+		plotsFolder.ChildAdded:Connect(function(child)
+			if child:IsA("Model") then
+				wireGenerator(child)
+			end
+		end)
 	end)
 end
 
 function EssenceTickController.Init() end
 
 function EssenceTickController.Start()
-	waitForOwnGenerator()
+	wireAllGenerators()
 end
 
 return EssenceTickController

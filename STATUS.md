@@ -357,6 +357,77 @@ prawdziwe `id` dev-produktow w Creator Dashboard (nadal placeholder `id = 0`, ja
 
 **Nastepny krok: T4b (mechanika loot-owa oparta o szczescie), po T4.**
 
+## Odwiedziny cudzych plotow (T5, social/flex) — ZAMKNIETY, 2 graczy PASS (2026-08-19)
+
+**Plan przed kodem (jak zazadal Andreas):** sprawdzono w kodzie, ze T2 replikuje juz
+Workspace.Plots jako zwykly globalny Folder (zero remote'ow), a karty na slotach replikuja sie
+atrybutami — wiec "podejsc i zobaczyc cudzy plot" dziala juz czesciowo za darmo. Policzono siatke
+plotow (`PLOT_COUNT=8`, 4x2, `GRID_SPACING=100`, offset od spawn) — najdalszy rog ~381 studow od
+spawnu, czyli **normalny spacer**, zero nawigacji/teleportu potrzebne (spec p.4, galaz "jesli nie
+trzeba — nic nie dodawaj"). Domkniete wiec tylko brakujace 2 rzeczy: nameplate + licznik lajkow,
+plus wlaczenie fontanny-juice na cudzych plotach (tanie, bo T3 juz ustawia atrybuty dla kazdego
+gracza).
+
+**Zakres (minimalny, reuse T2/T1):**
+- `Nameplate` (part z T1, dotad tekst-placeholder "PLAYER'S PLOT") wypelniany realnie:
+  `PlotService.renderNameplate` ustawia `{DisplayName} ❤ {likes}`, wolane z `allocatePlot` (na
+  wejsciu gracza) i z `LikePlot` (po kazdym udanym lajku) — replikacja jak karty, zero nowego
+  remote'a do SAMEGO wyswietlania.
+- **Licznik lajkow** (nie "wizyt" — wybrano bo tap jest tani do walidacji serwerowej; "wizyta" to
+  pojecie nieistniejace nigdzie indziej w kodzie, wymagaloby nowego mechanizmu proximity):
+  `profile.plotLikes` (trwaly licznik OTRZYMANYCH lajkow, na wlascicielu) + `profile.plotLikesGiven`
+  (`[ownerUserIdStr] = dateKey`, na goscu — anti-spam) w `PROFILE_TEMPLATE`
+  (`ProfileService.luau`). Nowy remote `LikePlot` (`Net.luau`): `C->S (ownerUserId) -> {ok, likes?,
+  reason?}`.
+- `PlotService.LikePlot(liker, ownerUserId)` — walidacja serwerowa w stylu `SetPlotSlot` (odrzuc w
+  calosci, jawny `reason`): `NoProfile` (liker bez profilu) / `SelfLike` (ownerUserId==liker.UserId)
+  / `NoPlot` (owner offline lub bez zaalokowanego plotu) / `AlreadyLiked` (juz dzis, klucz przez
+  `SeedService.DailyKey` — reuzyty wzorzec z `StreakService`, zero nowego day-key mechanizmu).
+  Klucz uproszczenia: plot Model istnieje w `Workspace.Plots` WYLACZNIE gdy wlasciciel jest online
+  (`allocatePlot`/`releasePlot` na `ProfileLoaded`/`ProfileReleasing`) — wiec `LikePlot` NIGDY nie
+  musi obslugiwac offline-ownera przy zapisie licznika, `ProfileService.GetProfile(ownerPlayer)`
+  zawsze valid gdy `ownerPlot` istnieje.
+- Klient: `PlotController.wireAllPlots()` — zamiast pojedynczego `GetMyPlot` (tylko wlasny plot),
+  skan `Workspace.Plots:GetChildren()` + `ChildAdded`, `ClickDetector` na KAZDYM `Nameplate` (wlasny
+  i cudze — `SelfLike` odrzuca serwer, klient nie filtruje). Klik = `LikePlot` invoke + popup
+  (`+1 ❤` / komunikat bledu PL: "To Twoj plot" / "Juz dzis polubione" / "Plot niedostepny"),
+  BillboardGui+Tween 1:1 wzorzec z `EssenceTickController.spawnPopup`.
+- **Fontanna-juice na cudzych plotach: WLACZONE** (decyzja wlasna, flagowana jak prosil Andreas) —
+  `EssenceTickController` przepisany z `waitForOwnGenerator` (jeden `GetMyPlot`) na
+  `wireAllGenerators()` (ten sam folder-scan co `PlotController`); tanie bo `LastTickAmount`/
+  `LastTickSeq` juz sa atrybutami ustawianymi dla KAZDEGO gracza w `EssenceTickService`, replikuja
+  sie na caly `Workspace.Plots` bez zadnej zmiany po stronie serwera.
+- Nawigacja: **NIE dodano** — potwierdzone niepotrzebne (patrz siatka wyzej).
+
+**Pliki zmienione:** `ProfileService.luau` (+`plotLikes`/`plotLikesGiven` w template),
+`PlotService.luau` (+`renderNameplate`, +`LikePlot`, wiring remote'a, `_SetSeedServiceForTest`
+hook), `Net.luau` (+`LikePlot` remote), `PlotController.luau` (+`wireAllPlots`/`wireNameplate`/
+`onLikeClick`/`spawnLikePopup`), `EssenceTickController.luau` (`waitForOwnGenerator` ->
+`wireAllGenerators`/`wireGenerator`, skop rozszerzony na wszystkie plotow).
+
+**Weryfikacja live (multiplayer_playtest, 2 klientow, `robloxstudio` MCP):**
+1. Czysty boot serwera+2 klientow, zero bledow w `get_runtime_logs` (filter="error" -> pusto).
+2. Po alokacji: `Plot_-1`/`Plot_-2` w Workspace.Plots, `Nameplate` obu = `"Player1 ❤ 0"` /
+   `"Player2 ❤ 0"` — potwierdzone `eval_server_runtime`.
+3. Acceptance (a)/(b)/(c) — wszystkie PASS, `PlotService.LikePlot` wolane bezposrednio na live
+   serwerze przez `eval_server_runtime`:
+   - Player2 lajkuje Plot Player1: `{ok=true, likes=1}` — licznik rosnie, nameplate aktualizuje sie
+     natychmiast.
+   - Ten sam lajk powtorzony natychmiast: `{ok=false, reason="AlreadyLiked"}` — spam zablokowany.
+   - Player1 probuje lajkowac wlasny plot: `{ok=false, reason="SelfLike"}`.
+   - **Persystencja:** Player1 rozlaczony (`leave_client`), `ProfileReleasing` zapisal profil;
+     bezposredni odczyt `DataStoreService:GetDataStore("RollARuneProfile_v1"):GetAsync("-1")`
+     potwierdza `plotLikes=1` w realnym DataStore (nie tylko w pamieci) — silniejszy dowod niz
+     rejoin w tym samym tescie, bo StudioTestService nadaje KAZDEMU nowo dolaczonemu klientowi
+     swiezy, inny fake userId (rejoin "tego samego" gracza nie jest odtwarzalny w jednym multiplayer
+     tescie).
+
+**Andreas: Ctrl+S w Studio** — T5 push (5 edytowanych plikow) zyje tylko w zywym DataModelu dopoki
+plac nie zapisany, jak przy T1-T4.
+
+**To domyka grywalny MVP tycoona.** Nastepny krok: T4b (luck) i dostrajanie liczb — po tym, na
+danych z playtestu (decyzja Andreasa, nie w zakresie T5).
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu

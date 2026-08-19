@@ -20,6 +20,8 @@ local Framework = ReplicatedStorage:WaitForChild("Framework")
 local ServiceRegistry = require(Framework:WaitForChild("ServiceRegistry"))
 local Net = require(Framework:WaitForChild("Net"))
 
+local Players = game:GetService("Players")
+
 local Shared = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Configs")
 local TotemConfig = require(Shared:WaitForChild("TotemConfig"))
 local CardArtConfig = require(Shared:WaitForChild("CardArtConfig"))
@@ -39,11 +41,23 @@ local EMPTY_BORDER_COLOR = Color3.fromRGB(120, 120, 125) -- przygaszony placehol
 
 local _profileService = nil
 local _indexService = nil
+local _seedService = nil
 local _template: Model? = nil
 local _plotsFolder: Folder? = nil
 
 local _freeCFrames: { CFrame } = {}
 local _playerPlot: { [Player]: Model } = {}
+
+-- T5 (odwiedziny) — wypełnia Nameplate.SurfaceGui.PlayerName żywym stanem gracza. Property
+-- replication "za darmo", ten sam wzorzec co CardArt.Image/RarityBorder.Color w renderSlot.
+local function renderNameplate(plotModel: Model, player: Player, likes: number)
+	local nameplate = plotModel:FindFirstChild("Nameplate")
+	local surfaceGui = nameplate and nameplate:FindFirstChild("SurfaceGui")
+	local label = surfaceGui and surfaceGui:FindFirstChild("PlayerName")
+	if label and label:IsA("TextLabel") then
+		label.Text = `{player.DisplayName} \u{2764} {likes}`
+	end
+end
 
 local function buildGridCFrames(): { CFrame }
 	local list = {}
@@ -117,6 +131,9 @@ local function allocatePlot(player: Player)
 
 	_playerPlot[player] = clone
 	renderAllSlots(player, clone)
+
+	local data = _profileService and _profileService.GetProfile(player)
+	renderNameplate(clone, player, (data and data.plotLikes) or 0)
 end
 
 local function releasePlot(player: Player)
@@ -164,6 +181,47 @@ function PlotService.SetPlotSlot(player: Player, slotIndex: any, totemId: any): 
 	return { ok = true }
 end
 
+-- T5 (odwiedziny) — jawna akcja gościa "polub plot". Wzorzec walidacji jak SetPlotSlot: odrzuć w
+-- całości, jawny reason. Limit raz/dzień per (liker, ownerUserId) trzymany na profilu LAJKUJĄCEGO
+-- (data.plotLikesGiven) -- klucz dnia z SeedService.DailyKey, ten sam zaufany zegar serwera co
+-- StreakService.TouchLogin, żeby nie dało się zalać lajków wielokrotnym klikiem/rejoinem tego
+-- samego dnia. Licznik `plotLikes` żyje na profilu WŁAŚCICIELA -- bezpieczne bo plot (a więc i ta
+-- funkcja) istnieje TYLKO gdy właściciel jest online (allocatePlot/releasePlot na
+-- ProfileLoaded/ProfileReleasing), więc GetProfile(ownerPlayer) zawsze trafia w załadowany profil.
+-- reason: NoProfile|SelfLike|NoPlot|AlreadyLiked.
+function PlotService.LikePlot(liker: Player, ownerUserId: any): { ok: boolean, likes: number?, reason: string? }
+	local likerData = _profileService and _profileService.GetProfile(liker)
+	if not likerData then
+		return { ok = false, reason = "NoProfile" }
+	end
+	if type(ownerUserId) ~= "number" then
+		return { ok = false, reason = "NoPlot" }
+	end
+	if ownerUserId == liker.UserId then
+		return { ok = false, reason = "SelfLike" }
+	end
+
+	local ownerPlayer = Players:GetPlayerByUserId(ownerUserId)
+	local ownerPlot = ownerPlayer and _playerPlot[ownerPlayer]
+	local ownerData = ownerPlayer and _profileService and _profileService.GetProfile(ownerPlayer)
+	if not (ownerPlayer and ownerPlot and ownerData) then
+		return { ok = false, reason = "NoPlot" }
+	end
+
+	local todayKey = _seedService.DailyKey(os.time())
+	likerData.plotLikesGiven = likerData.plotLikesGiven or {}
+	local key = tostring(ownerUserId)
+	if likerData.plotLikesGiven[key] == todayKey then
+		return { ok = false, reason = "AlreadyLiked" }
+	end
+	likerData.plotLikesGiven[key] = todayKey -- JEDYNY zapis profile.plotLikesGiven
+
+	ownerData.plotLikes = (ownerData.plotLikes or 0) + 1 -- JEDYNY zapis profile.plotLikes
+	renderNameplate(ownerPlot, ownerPlayer, ownerData.plotLikes)
+
+	return { ok = true, likes = ownerData.plotLikes }
+end
+
 -- T3 (pasywna esencja): suma stawek esencja/sek wszystkich wystawionych kart (pusty slot = brak
 -- wpisu = 0). Pure, testowalna bez profilu/instancji -- czyta WYŁĄCZNIE TotemConfig +
 -- EssenceRateConfig, żeby EssenceTickService (online) i OfflineEarnService (offline) liczyły
@@ -190,6 +248,7 @@ function PlotService.Init() end
 function PlotService.Start()
 	_profileService = ServiceRegistry.get("ProfileService")
 	_indexService = ServiceRegistry.get("IndexService")
+	_seedService = ServiceRegistry.get("SeedService")
 
 	_template = ServerStorage:WaitForChild("PlotTemplate") :: Model
 	_plotsFolder = Workspace:FindFirstChild("Plots") :: Folder?
@@ -217,6 +276,10 @@ function PlotService.Start()
 	Net.get("SetPlotSlot").OnServerInvoke = function(player: Player, slotIndex: any, totemId: any)
 		return PlotService.SetPlotSlot(player, slotIndex, totemId)
 	end
+
+	Net.get("LikePlot").OnServerInvoke = function(player: Player, ownerUserId: any)
+		return PlotService.LikePlot(player, ownerUserId)
+	end
 end
 
 -- Hooki TYLKO do testów (wzorzec DeckService._SetProfileServiceForTest).
@@ -226,6 +289,10 @@ end
 
 function PlotService._SetIndexServiceForTest(fake)
 	_indexService = fake
+end
+
+function PlotService._SetSeedServiceForTest(fake)
+	_seedService = fake
 end
 
 return PlotService
