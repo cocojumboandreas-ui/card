@@ -1,7 +1,8 @@
 # STATUS — Roll a Rune
 
 Ostatnia aktualizacja: 2026-08-19, **PIVOT: start przejscia z plaskiej karcianki na 3D
-COLLECTION-TYCOON** — patrz sekcja "Pivot na tycoon — T1 szkielet plotu (2026-08-19)" ponizej.
+COLLECTION-TYCOON** — patrz sekcje "Pivot na tycoon — T1 szkielet plotu" i "T2 przydzial plotow +
+wypelnianie slotow" (2026-08-19) ponizej.
 Silnik/Stworki/paczki/merge/esencja z karcianki ZOSTAJA i wpinaja sie jako tresc, nic nie
 wyrzucone. Run/deckbuilder -> tryb wtorny na pozniej. Poprzedni stan (System 4 packi/daily/luck
 zablokowane na decyzji Andreasa o strukturze tabel) jest teraz W TLE, nie skasowany — patrz
@@ -47,6 +48,91 @@ gicie/na dysku, bo to czysto instancje, nie skrypty.
 **Celowo NIE zrobione w T1 (kolejne kroki):** brak serwerowego systemu placowania plotow (T2/T3),
 brak realnego tick esencji, brak paczek/odwiedzania. Odds-bug i packi (System 4) queued przed
 T4, jak wczesniej.
+
+## Pivot na tycoon — T2 przydzial plotow + wypelnianie slotow (2026-08-19)
+
+Wpina sie w nazwany szkielet z T1 (`PlotTemplate`, `Slot1..10`, `CardArt`). `PlotTemplate`
+**przeniesiony z ReplicatedStorage do ServerStorage** (klient nigdy nie potrzebuje surowego
+template'u, tylko zywych klonow w `Workspace.Plots`, ktore i tak replikuja).
+
+**Nowe pliki:** `Shared/Configs/TierColorConfig.luau` (jedyne zrodlo tier->kolor, wyciagniete z
+`UIFactory.TierColors` — serwer i klient teraz czytaja TA SAMA tabele, ta sama dyscyplina co
+odds-bug fix), `ServerScriptService/Services/PlotService.luau` (przydzial siatki + zapis
+slotow), `StarterPlayerScripts/Controllers/PlotController.luau` (panel wyboru karty).
+**Edytowane:** `ProfileService` (+`profile.plotSlots` — sparse `[1..10]=totemId`, wzorzec
+`streak.claimed`), `Net.luau` (+`GetMyPlot`/`SetPlotSlot`), `Bootstrap.server.luau` (ORDER:
+`PlotService` po `IndexService`), `UIRootController` (+root `Plot`), `init.client.luau`
+(+`PlotController`).
+
+**Siatka:** N=8 plotow, 4x2, `GRID_SPACING=100` (footprint 64+zapas), offset od
+`SpawnLocation(0,0.5,0)` o `GRID_BASE_Z=250` — zero kolizji z domyslnym Baseplate (potwierdzone
+`get_instance_children` na czystym placu przed startem: tylko Terrain/SpawnLocation/Baseplate/
+Camera). Alokacja/zwolnienie wpiete pod `ProfileService.ProfileLoaded`/`ProfileReleasing` (ten
+sam wzorzec co StreakService/QuestService/AnnouncementService), idempotentne (podwojny
+`ProfileLoaded` nie duplikuje plotu).
+
+**ClickDetector — NOWY wzorzec w tym repo** (grep na starcie T2: zero `ClickDetector`/
+`ProximityPrompt` gdziekolwiek wczesniej). Wybrany nad ProximityPrompt bo spec mowi "tap na
+slot", nie "podejdz i przytrzymaj" — gracz i tak stoi na swoim plocie. `MaxActivationDistance=64`
+(pelny footprint plotu z dowolnego rogu).
+
+**Replikacja "za darmo" (spelnia p.4 specyfikacji, ustawia T5):** `CardArt.Image` /
+`RarityBorder.Color` / atrybut `Frame:SetAttribute("TotemId", ...)` to zwykle
+property/attribute-replication Roblox na instancjach pod Workspace — inni gracze widza
+wystawione karty bez osobnego eventu. Klient odczytuje atrybut lokalnie zamiast dobijac sie
+remotem.
+
+**Walidacja serwerowa** (`PlotService.SetPlotSlot`, wzorzec 1:1 z `DeckService.SetDeck`): odrzuc
+w calosci, jawny reason (`NoProfile`/`BadSlot`/`BadArg`/`UnknownTotem`/`NotOwned`). Serwer NIGDY
+nie ufa referencji plotu od klienta — zawsze rozwiazuje wlasny plot gracza server-side przez
+mape `Player -> Model`. `IsDiscovered` z `IndexService` to jedyne zrodlo prawdy o posiadaniu.
+Wystawienie NIE konsumuje karty (referencja, `profile.totems` count bez zmian).
+
+**WAZNE odkrycie tej sesji — zywe Studio != git.** Przed pushem stwierdzone (`get_instance_children`
+na `Services`/`Controllers`), ze `MergeService` (System 3, serwer) i `DeckController` (MAX-SLOT,
+klient) sa W GICIE, ale NIE ZYWE w Studio — nigdy nie zostaly wypchniete. Zmienilo to strategie
+pushowania T2: zamiast pelnego `set_script_source` (ktory wstawilby do zywych
+`Bootstrap.server.luau`/`init.client.luau` odwolania do serwisow/kontrolerow, ktorych tam nie ma
+— serwerowy ORDER-desync guard by `error()`owal, klient zawisalby na `WaitForChild`), kazdy
+wspoldzielony plik (`Net.luau`, `ProfileService.luau`, `UIFactory.luau`, oba `Bootstrap`,
+`UIRootController.luau`) zostal zdiffowany wzgledem ZYWEGO zrodla i lataniowo poprawiony
+(`insert_script_lines`/`edit_script_lines`), nie nadpisany. **To NIE jest naprawione teraz** —
+System 3 (merge/craft) i MAX-SLOT-owy `DeckController` nadal czekaja na osobny przebieg pushu,
+niezalezny od zakresu T2.
+
+**Bug znaleziony i naprawiony przez live playtest** (nie code review): `PlotService.luau:75`
+rzucal `Ambiguous syntax` na serwerze. Przyczyna: `borderPart.Color = TierColorConfig.tierColor(
+totem.tier)` (linia konczaca sie wywolaniem funkcji) nastepowana przez linie zaczynajaca sie od
+`(frame :: Instance):SetAttribute(...)` — Lua parsuje to jako KONTYNUACJE tego samego wywolania
+(`tierColor(...)( frame ...)`), nie nowa instrukcje. Fix: rzutowanie raz do lokalnych zmiennych
+(`frameInst`/`borderPart`/`cardArtLabel`) PRZED blokiem if/else, zero linii zaczynajacych sie od
+`(` po wyrazeniu-wywolaniu.
+
+**Acceptance check (2 graczy, live multiplayer playtest, `eval_server_runtime`/
+`eval_client_runtime`, nie zalozenia):**
+
+| # | Wymog | Wynik |
+|---|-------|-------|
+| a | Kazdy dostaje wlasny plot na innym miejscu siatki | `Plot_-1 @ (150,0,350)`, `Plot_-2 @ (50,0,350)` — dwa rozne modele, rozne pozycje |
+| b | Kazdy wypelnia sloty ze SWOJEJ kolekcji przez remote (symulacja UI-flow: `NetController.Invoke`) | P1(capybop) `SetPlotSlot(1,"capybop")` -> `ok=true`; P2(lotti) `SetPlotSlot(1,"lotti")` -> `ok=true` |
+| c | Kazdy WIDZI wystawione karty drugiego | Odczyt z client-1: `Plot_-1.Slot1.TotemId=capybop` (wlasna) I `Plot_-2.Slot1.TotemId=lotti` (cudza) — replikacja atrybutu potwierdzona live |
+| — | (bonus) walidacja serwerowa faktycznie odrzuca | P1 probuje `SetPlotSlot(2,"lotti")` (nie posiada) -> `NotOwned`, zapis odrzucony |
+| d | Uklad trwa po rejoinie | **czesciowo zweryfikowane** — `data.plotSlots` to zwykla mutacja profilu, ten sam wzorzec co juz zaufane `streak.claimed`/`indexClaims`, `ProfileStore` potwierdzony live-zapisujacy (`"Roblox API services available"`). Literalny "ten sam gracz opuszcza i wraca" NIE do zasymulowania w tym harnessie testow wieloosobowych — kazdy `add_players` mintuje NOWY syntetyczny UserId (kolejne ujemne liczby), nie odtwarza tozsamosci. Mechanizm zapisu jest identyczny jak dla juz-zweryfikowanych pol, ale prawdziwy round-trip rejoina wymaga prawdziwego gracza (Andreas) lub solo-playtest z tym samym Studio-userem. |
+
+Zrzut ekranu **zablokowany** — `capture_screenshot` wymaga w tym miejscu wlaczonego "Allow Mesh /
+Image APIs", ktore dla opublikowanych miejsc jest ustawieniem Creator Dashboard wymagajacym
+weryfikacji wieku/ID konta (nie skryptowa property, nie do przelaczenia przez MCP) — pominiete
+swiadomie, nie ukrywane.
+
+**Andreas musi zapisac plac** (Ctrl+S) — jak w T1, wszystkie zmiany instancji (nowe ModuleScripty,
+przeniesienie `PlotTemplate`, root `Plot`) zyja tylko w zywym Studio DataModelu dopoki nie
+zapisane.
+
+**Celowo NIE zrobione w T2 (kolejne kroki wg specyfikacji):** T3 (realny tick esencji z
+`EssenceGenerator`), T5 ma "za darmo" architekturalnie (replikacja atrybutow), ale wizualne
+dopieszczenie widoku cudzych plotow nie zrobione. Migracja/default = puste sloty (prostszy
+wariant ze specyfikacji, nie auto-fill najlepszych owned). System 3/MAX-SLOT push do Studio
+oraz odds-bug/packi (System 4) nadal queued, niezalezne od T2.
 
 ## Odds-bug fix (compliance, 2026-08-18)
 

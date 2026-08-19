@@ -38,6 +38,9 @@ local PROFILE_TEMPLATE = {
 	bestScores = { daily = {}, allTime = 0 }, -- daily: [dateKey] = score (walidacja anti-resubmit)
 	quests = { dateKey = "", list = {} },
 	streak = { count = 0, lastDateKey = "", claimed = {} }, -- claimed: [days]=true, D7/D14/D30 (StreakConfig)
+	plotSlots = {}, -- T2 (tycoon pivot): [slotIndex:1..10] = totemId wystawiony w PlotService; sparse,
+	-- wzorzec jak streak.claimed. Wystawienie NIE konsumuje karty -- to referencja, count w `totems`
+	-- się nie zmienia.
 	offlineTs = 0,
 	ftueDone = false,
 	purchases = { receipts = {} }, -- idempotencja ProcessReceipt

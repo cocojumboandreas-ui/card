@@ -21,6 +21,7 @@ local ROOTS = {
 	{ name = "Ftue", order = 42 }, -- Faza 4 Krok 5: hinty/toasty onboardingu, nad ScoreFx (żeby "LEVEL 1" nie chowało się pod popup wyniku)
 	{ name = "Index", order = 45 }, -- Faza 2b: panel kolekcji, nad ScoreFx
 	{ name = "Deck", order = 46 }, -- MAX-SLOT: panel wyboru puli totemów, tuż nad Index (osobny modal, nie dzieli roota)
+	{ name = "Plot", order = 47 }, -- T2 (pivot tycoon): panel wyboru karty do slotu plotu, tuż nad Deck
 	{ name = "Toast", order = 50 }, -- Faza 3: krótkie popupy (offline earn, streak, questy...), zawsze na wierzchu
 }
 

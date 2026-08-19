@@ -57,6 +57,10 @@ local REMOTES: { [string]: string } = {
 	GetMergeState = "RemoteFunction", -- C->S () -> {ok, mergeable:{{id,name,tier,count,cost,eligible}}, disenchantable:{{id,variant,name,count,value}}}
 	MergeTotem = "RemoteFunction", -- C->S (totemId:string) -> {ok, resultTotemId?, resultTier?, resultVariant?, isNewDiscovery?, essence?, reason?}
 	DisenchantTotem = "RemoteFunction", -- C->S (totemId:string, variant:string) -> {ok, essence?, reason?}
+
+	-- T2 (tycoon pivot): przydział plotów + wypełnianie slotów (PlotService)
+	GetMyPlot = "RemoteFunction", -- C->S () -> {ok, plotModel:Model?} -- referencja do żywej instancji plotu gracza w Workspace; nil dopóki alokacja (async, po ProfileLoaded) nie dobiegnie -- klient retry'uje
+	SetPlotSlot = "RemoteFunction", -- C->S (slotIndex:number, totemId:string?) -> {ok, reason?} -- totemId=nil/"" czyści slot; serwer sam znajduje plot gracza, nigdy nie ufa referencji od klienta
 }
 
 local Net = {}

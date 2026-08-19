@@ -11,16 +11,15 @@
 -- layout żre też nie-przyciskowe dzieci i się rozjeżdża).
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local TierColorConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Configs"):WaitForChild("TierColorConfig"))
 
 local UIFactory = {}
 
-UIFactory.TierColors = {
-	Common = Color3.fromRGB(158, 158, 163), -- szary
-	Uncommon = Color3.fromRGB(74, 144, 255), -- niebieski
-	Rare = Color3.fromRGB(50, 110, 230), -- niebieski (świadomie ten sam bucket co Uncommon -- 4 kolory na 5 tierów, wg brief)
-	Epic = Color3.fromRGB(170, 90, 255), -- fioletowy
-	Legendary = Color3.fromRGB(255, 196, 61), -- złoty
-}
+-- T2: tabela sama w sobie ŻYJE w TierColorConfig (serwer PlotService ją też czyta) -- ten alias
+-- zostaje TYLKO dla wstecznej zgodności wywołań `UIFactory.TierColors[...]` w istniejących kontrolerach.
+UIFactory.TierColors = TierColorConfig.TierColors
 
 UIFactory.ElementColors = {
 	Fire = Color3.fromRGB(235, 90, 64),
@@ -31,7 +30,7 @@ UIFactory.ElementColors = {
 }
 
 function UIFactory.tierColor(tier: string?): Color3
-	return (tier and UIFactory.TierColors[tier]) or Color3.fromRGB(120, 120, 125)
+	return TierColorConfig.tierColor(tier)
 end
 
 function UIFactory.elementColor(element: string?): Color3
