@@ -134,6 +134,42 @@ dopieszczenie widoku cudzych plotow nie zrobione. Migracja/default = puste sloty
 wariant ze specyfikacji, nie auto-fill najlepszych owned). System 3/MAX-SLOT push do Studio
 oraz odds-bug/packi (System 4) nadal queued, niezalezne od T2.
 
+### Domkniecie sync dysk<->Studio + T2 acceptance (2026-08-19, druga polowa sesji)
+
+Poprzedni akapit flagowal "System 3/MAX-SLOT nadal czeka na osobny push" — domkniete w tym
+przebiegu. Zdiffowane WSZYSTKIE 11 plikow skryptowych (MergeConfig, MergeService, DeckController,
+Net, ProfileService, EconomyService, UIRootController, init.client.luau, Bootstrap.server.luau,
+IndexController, RollRevealController) git<->live przez `get_script_source`/`set_script_source`
+(gotcha: parametr to `instancePath`, nie `path`).
+
+**Znaleziony i naprawiony 1 realny dryf:** `RollRevealController` mial inaczej ustawiony blok
+komentarza wzgledem `playReveal` (w gicie NAD funkcja, w zywym Studio POD nia, sama tresc
+identyczna) — nadpisany pelnym gitowym source'em, zweryfikowany ponownie `line_range` odczytem.
+Po fixie: **11/11 plikow identyczne, zero rozjazdu.**
+
+**PlotTemplate (T1 geometria, `ServerStorage.PlotTemplate`) potwierdzony NIETKNIETY** —
+`get_instance_children`: wszystkie 16 dzieci obecne (PlotOrigin/Floor/BackWall/
+EssenceGenerator/EntranceArch/Nameplate/Slot1..Slot10, kazdy z CardFrame). Zadna operacja pushu
+nigdy nie celowala w ta sciezke — instancje zyja WYLACZNIE w zywym Studio, nie w gicie.
+
+**Straznik ORDER-desync potwierdzony zielony** — swiezy 2-graczowy playtest pokazal kompletna,
+poprawnie uporzadkowana sekwencje Init/Start dla wszystkich 20 serwisow (w tym MergeService na
+wlasciwym miejscu) — mozliwe tylko jesli synchroniczny `error()` w strazniku (Bootstrap.server.luau
+linie 45-75) nie odpalil.
+
+**T2 acceptance domkniety realnym 2-klientowym testem** (`multiplayer_playtest numPlayers=2`,
+role `client-1`/`client-2`, rozne `LocalPlayer.UserId` -1/-2 — NIE jeden symulowany klient, punkt
+c z tabeli acceptance wyzej wymagal prawdziwej drugiej osoby): Player1 wystawil `frostfawn` na
+swoim plocie przez `SetPlotSlot`, Player2 odczytal `Workspace.Plots.Plot_-1.Slot1.CardFrame`
+BEZPOSREDNIO (bez zadnego dodatkowego remote'u) i zobaczyl poprawny `totemIdAttr=frostfawn` +
+`borderColor` — czysta replikacja atrybutu Roblox, zgodnie z projektem.
+
+**Andreas: Ctrl+S w Studio** — ten przebieg naprawil `RollRevealController` na zywo (fix live,
+nie w gicie) i caly poprzedni przebieg zostawil nowe instancje (MergeConfig/MergeService/
+DeckController jako zywe ModuleScripty, `PlotTemplate` w ServerStorage) tylko w pamieci
+DataModelu. Bez zapisu placu wszystko to znika przy nastepnym restarcie Studio i rozjazd
+dysk<->Studio wraca.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
