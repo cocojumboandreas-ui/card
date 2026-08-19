@@ -73,6 +73,13 @@ local function selectVariant(variantLuck, rng)
 	return VariantConfig.fallback
 end
 
+-- T4 (paczki): cienki publiczny wrapper wokół selectVariant -- PackService reużywa TEN SAM ważony
+-- rzut wariantu zamiast duplikować 14 linii kaskady (jedyny sposób, żeby zewnętrzny moduł mógł
+-- odpalić prywatną funkcję lokalną tego pliku).
+function RollService.RollVariant(variantLuck: number?, rng: Random): string
+	return selectVariant(variantLuck, rng)
+end
+
 -- Handler Net.RollTotem: waliduje profil, wydaje Esencję, losuje, zapisuje, zwraca RollResult.
 function RollService.RollTotem(player: Player)
 	if not (_profile and _profile.IsLoaded(player)) then

@@ -35,4 +35,25 @@ function TotemPool.sorted(): { PoolEntry }
 	return arr
 end
 
+-- T4 (paczki): totemy pogrupowane po tierze, dla uniform-w-tierze wyboru totemu przy paczkach
+-- (PackService rzuca TIER przez własną tierTable, potem WYBIERA totem RÓWNOMIERNIE spośród tych o
+-- tym tierze -- inaczej niż selectTotem, które w ogóle nie oddziela tych dwóch kroków). Cache
+-- pogrupowany raz z TotemPool.sorted(), ten sam statyczny roster.
+local _byTier: { [string]: { string } }? = nil
+function TotemPool.byTier(tier: string): { string }
+	if not _byTier then
+		local groups: { [string]: { string } } = {}
+		for _, entry in TotemPool.sorted() do
+			local g = groups[entry.tier]
+			if not g then
+				g = {}
+				groups[entry.tier] = g
+			end
+			g[#g + 1] = entry.id
+		end
+		_byTier = groups
+	end
+	return _byTier[tier] or {}
+end
+
 return TotemPool

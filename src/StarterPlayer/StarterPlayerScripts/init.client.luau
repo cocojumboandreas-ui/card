@@ -24,6 +24,7 @@ local ORDER = {
 	"RunFlowController",
 	"StartPickController", -- Faza 4 Krok 0: modal picku startowego, po RunFlowController, niezależny od HUD-u
 	"MonetizationController", -- Faza 4 Krok 4: sklep Robux + gating tabelą szans, niezależny od HUD-u
+	"PackController", -- T4: katalog paczek Mega/Super/Legend, po UIRootController (root "Packs") i MonetizationController (ten sam wzorzec "?" gate)
 	"HandController",
 	"ScoreFxController",
 	"TotemBarController",

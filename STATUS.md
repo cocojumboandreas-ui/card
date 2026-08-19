@@ -242,6 +242,121 @@ CUDZYCH graczy (tylko wlasny, jak `PlotController`), realny multi-minutowy playt
 uplywem czasu (acceptance zweryfikowany przez `_TickPlayerForTest`/`_ComputeOfflineRawForTest` —
 ten sam kod co produkcyjny, ale nie "czekalem realnie X minut").
 
+## Paczki (T4) — trzy platne paczki Mega/Super/Legend — ZAMKNIETY, bramka symulacji PASS (2026-08-19)
+
+Trzy eskalujace paczki, kupowane za Esencje LUB Robux, calkowicie NIEZALEZNE od `RollService.RollTotem`
+(zatwierdzone decyzje Andreasa: paczki NIE dotykaja `data.pity`/`data.lifetimeRolls`, Legend ujawnia
+gwarancje LITERALNIE, nie zblendowana).
+
+**Tabela paczek (TUNING-PENDING, startowe wartosci z planu):**
+
+| Paczka | Karty | Cena Robux | Cena Esencja | Common/Uncommon/Rare/Epic/Legendary % |
+|---|---|---|---|---|
+| Mega | 5 | 149 | 600 | 50/30/13/4/3 |
+| Super | 8 | 299 | 1400 | 40/30/17/7/6 |
+| Legend | 10 | 599 | 3200 | 25/30/20/10/15 (karty 1-9); karta 10 = **gwarantowany Legendary (100%)** |
+
+**Architektura:**
+- `PackConfig.luau` (nowy) — 3 paczki, `assert` load-time ze kazda `tierTable` sumuje sie do
+  dokladnie 100.
+- `PackService.luau` (nowy) — `selectPackTier` = wlasny dokladny cumulative-walk PER PACZKA (wzorzec
+  `RollService.selectVariant`, NIE globalna kaskada `selectTotem`). `OddsTable(packKey)` zwraca
+  `cfg.tierTable` **BEZ zadnej transformacji** — ta sama tabela, ktora `selectPackTier` iteruje,
+  silniejsza gwarancja zgodnosci wyswietlanej/losowanej niz nawet `PolicyService`. Totem w obrebie
+  wylosowanego tieru: uniform przez nowe `TotemPool.byTier`. Wariant: reuzywa nowy publiczny
+  `RollService.RollVariant` (wrapper na `selectVariant`).
+- Robux: idempotentny kredyt przez `PurchaseService` (jedyny writer `profile.purchases`) —
+  `MarketplaceConfig.DevProducts.PackMega/PackSuper/PackLegend` maja pole `packCredit`, granted w
+  `grantDevProduct` do `data.purchases.packCredits[key]`, konsumowany atomowym check-and-decrement
+  `PurchaseService.ConsumePackCredit`. Esencja: bezposrednio i atomowo przez
+  `EconomyService.TrySpendEssence` w tym samym wywolaniu co roll (brak async receipt, brak potrzeby
+  kredytu).
+- `PackController.luau` (nowy) — katalog "Paczki" (przycisk `(1,-394,0,12)`, obok istniejacego
+  Talia/STORE zachodzenia na `-316`, zeby nie dolozyc trzeciego nakladania). Kazdy rzadek zawsze
+  pokazuje "?" obok Ess/R$ w tym samym widoku — "?" fizycznie zawsze jeden tap przed zakupem, bez
+  osobnego blokujacego gate-modala. Legend: "?" pokazuje karty 1-9 wg tabeli + osobna linia
+  "Karta 10: GWARANTOWANY Legendary (100%)", zero zblendowanej matematyki. Sekwencyjny reveal
+  reuzywa `RollRevealController.PlayReveal`.
+- **Reentrancy fix (sequential reveal):** `RollRevealController.RollCompleted:Fire()` odpala sie
+  PRZEZ `task.spawn` synchronicznie do pierwszego yielda handlera — WEWNATRZ `playReveal`, zanim
+  `_busy=false` zdazy wykonac sie w watku-rodzicu. Inline `PlayReveal(nextCard)` w handlerze trafialby
+  wiec w busy-guard i CICHO gubil karte (sequencer wisi w nieskonczonosc). Fix: `task.defer` zamiast
+  wywolania inline — odklada nastepne wywolanie na koniec biezacego cyklu wznowien, po tym jak
+  `_busy=false` juz sie wykonalo.
+
+**Ranked-isolation grep (post-implementacja, wymog planu):** zero wystapien
+`RunShop|Ranked|rankedTotemPool` w `PackService.luau` i `PackController.luau` — potwierdzone.
+
+**Symulacja Monte Carlo (obowiazkowa bramka, `tests/PackService.checkpoint.studio.luau`, odpalona
+live w `eval_server_runtime`/`execute_luau` w solo-playteście, N=10-20k per paczka):**
+
+| Paczka | N | tier | wyswietlane % | empiryczne % | delta |
+|---|---|---|---|---|---|
+| Mega | 10 000 | Common | 50.000 | 50.378 | 0.378 pp |
+| Mega | 10 000 | Uncommon | 30.000 | 29.882 | 0.118 pp |
+| Mega | 10 000 | Rare | 13.000 | 12.726 | 0.274 pp |
+| Mega | 10 000 | Epic | 4.000 | 4.030 | 0.030 pp |
+| Mega | 10 000 | Legendary | 3.000 | 2.984 | 0.016 pp |
+| Super | 10 000 | Common | 40.000 | 39.915 | 0.085 pp |
+| Super | 10 000 | Uncommon | 30.000 | 30.162 | 0.162 pp |
+| Super | 10 000 | Rare | 17.000 | 16.981 | 0.019 pp |
+| Super | 10 000 | Epic | 7.000 | 6.982 | 0.018 pp |
+| Super | 10 000 | Legendary | 6.000 | 5.959 | 0.041 pp |
+| Legend | 20 000 | Common | 25.000 | 25.069 | 0.069 pp |
+| Legend | 20 000 | Uncommon | 30.000 | 30.008 | 0.008 pp |
+| Legend | 20 000 | Rare | 20.000 | 19.937 | 0.063 pp |
+| Legend | 20 000 | Epic | 10.000 | 9.933 | 0.067 pp |
+| Legend | 20 000 | Legendary | 15.000 | 15.053 | 0.053 pp |
+
+Max delta w kazdej paczce < 0.4 pp (prog bramki: 1.0 pp) — **PASS**.
+
+**Gwarancja Legend, twarde potwierdzenie:** karta #10 sprawdzona w 20 000/20 000 otwartych paczek,
+`violations=0` — **WE WSZYSTKICH otwarciach karta #10 = Legendary (100%)**.
+
+**Weryfikacja live (poza symulacja, `eval_server_runtime` w zywym solo-playteście, prawdziwy
+profil gracza):**
+- `OpenPack(player, "Mega", "essence")`: essence przed=261235 po=260635 (spent=600, zgodne z cena),
+  5 kart zwroconych, zapisane do `data.totems`.
+- `OpenPack(player, "Legend", "essence")` + drugi test razem: `data.lifetimeRolls` i
+  `data.pity.sinceEpic` **niezmienione** przed/po obu otwarciach (851/16 -> 851/16) — izolacja od
+  pity/lifetimeRolls potwierdzona NA ZYWO (nie tylko inspekcja kodu). Karta #10 paczki Legend w tym
+  konkretnym live-otwarciu: `Legendary` (zgodnie z gwarancja).
+- Symulowany kredyt Robux (`packCredits.Super`): `ConsumePackCredit` 1->0 przy pierwszym `OpenPack`
+  (`ok=true`), drugie wywolanie bez kredytu poprawnie zwraca `ok=false, reason="NoCredits"` —
+  atomowy check-and-decrement dziala.
+- Serwer bootuje czysto (wszystkie 21 serwisow Init+Start, `PackService` na wlasciwym miejscu w
+  ORDER, zero `error()` ze straznika ORDER-desync po naprawie), klient bootuje czysto (`PackController`
+  Init+Start bez bledow).
+
+**Zlapany i naprawiony blad podczas pierwszego push do Studio:** `PackConfig.Packs: { [string]:
+PackDef } = {...}` to NIEPRAWIDLOWA skladnia Luau — adnotacja typu na przypisaniu do pola
+(`tabela.pole: Typ = ...`) dziala tylko dla `local`, nie dla przypisan do istniejacej tabeli. Zwalilo
+parsowanie calego modulu -> kaskadowo `PackService` (require) -> `Bootstrap.server.luau` (cały serwer
+padal). Fix: usuniecie adnotacji z przypisania, cast na koncu wyrazenia (`} :: { [string]: PackDef }`)
+zamiast inline adnotacji.
+
+**Compliance checklist (z planu T4):**
+- [x] `PackConfig` z `assert` sum=100 per paczka.
+- [x] `PackService` z wlasnym dokladnym tier-pickerem (nie global `selectTotem` kaskada).
+- [x] `OddsTable` = bezposrednia referencja do `tierTable`, zero transformacji.
+- [x] Robux = kredyt idempotentny przez `PurchaseService` (jedyny writer `profile.purchases`).
+- [x] "?" (`GetPackOdds`) zawsze widoczny obok kazdego przycisku zakupu w tym samym rzadku katalogu.
+- [x] Paczki NIE dotykaja `data.pity`/`data.lifetimeRolls` — potwierdzone kodem I live-testem.
+- [x] Ranked-isolation grep po kodzie — zero trafien.
+- [x] Symulacja N=10-20k per paczka, tabela empiryczne-vs-wyswietlane w STATUS.md.
+- [x] Twarde potwierdzenie 100% Legendary na karcie #10 Legend (20 000/20 000).
+
+**Andreas: Ctrl+S w Studio** — T4 push (3 nowe ModuleScripty: `PackConfig`, `PackService`,
+`PackController`, + 6 edytowanych plikow + oba Bootstrapy) zyje tylko w zywym DataModelu dopoki plac
+nie zapisany, jak przy T1/T2/T3.
+
+**Celowo NIE zrobione w T4:** balans cen/procentow (jawnie TUNING-PENDING, startowe wartosci z planu),
+prawdziwe `id` dev-produktow w Creator Dashboard (nadal placeholder `id = 0`, jak reszta
+`MarketplaceConfig.DevProducts` od Fazy 4 Krok 2) — Robux-flow nie da sie w pelni przetestowac E2E
+(prawdziwy `PromptProductPurchase`) dopoki ID nie zostana uzupelnione w Dashboardzie.
+
+**Nastepny krok: T4b (mechanika loot-owa oparta o szczescie), po T4.**
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu

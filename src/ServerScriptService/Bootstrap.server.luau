@@ -30,6 +30,7 @@ local ORDER = {
 	"DeckService", -- MAX-SLOT: GetDeck/SetDeck, zależy tylko na odczyt (get) ProfileService/IndexService, wymagany PRZED RunShopService
 	"RollService",
 	"MergeService", -- System 3: merge/disenchant kolekcji, zależy na odczyt (get) Profile/Economy/Index, poza-runowa meta jak Roll
+	"PackService", -- T4: paczki Mega/Super/Legend, zależy na odczyt (get) Profile/Economy/Index/Purchase/Roll, poza-runowa meta jak Merge
 	"SeedService", -- Faza 3: czysta funkcja, zero zależności; PRZED RunSessionService (użyty w startRun)
 	"RunSessionService",
 	"PlayService",

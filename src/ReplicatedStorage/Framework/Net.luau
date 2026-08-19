@@ -49,6 +49,10 @@ local REMOTES: { [string]: string } = {
 	FtueSync = "RemoteEvent", -- S->C {ftueDone:boolean} — push raz po ProfileLoaded (FtueService)
 	MarkFtueDone = "RemoteEvent", -- C->S () — klient (FTUEController) sygnalizuje koniec sekwencji onboardingu; serwer ustawia profile.ftueDone=true (idempotent, fire-and-forget)
 
+	-- T4: paczki Mega/Super/Legend (PackService)
+	GetPackOdds = "RemoteFunction", -- C->S () -> {[packKey]: {cards, guaranteeLegendaryLast, priceRobux, priceEssence, tiers:{{tier,pct}}}} -- bezposrednia referencja do PackConfig.Packs[key].tierTable, WYMAGANY przed kazdym zakupem paczki (compliance)
+	OpenPack = "RemoteFunction", -- C->S (packKey:string, method:"essence"|"robux") -> {ok, packKey?, cards?:{{totemId,tier,variant,isNewDiscovery}}, essence?, reason?}
+
 	-- MAX-SLOT: wybór aktywnej puli totemów (DeckService)
 	GetDeck = "RemoteFunction", -- C->S () -> {ok, deck:{totemId}, deckSize, entries:{{id,name,tier,selectable,inDeck}}}
 	SetDeck = "RemoteFunction", -- C->S (ids:{totemId}) -> {ok, reason?}

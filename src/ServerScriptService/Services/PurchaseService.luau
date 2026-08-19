@@ -43,6 +43,10 @@ local function grantDevProduct(player: Player, data, productKey: string)
 	if cfg.rerollCredits then
 		data.purchases.rerollCredits = (data.purchases.rerollCredits or 0) + cfg.rerollCredits
 	end
+	if cfg.packCredit then
+		data.purchases.packCredits = data.purchases.packCredits or {}
+		data.purchases.packCredits[cfg.packCredit] = (data.purchases.packCredits[cfg.packCredit] or 0) + 1
+	end
 	if cfg.tempBuff then
 		data.purchases.tempBuffs = data.purchases.tempBuffs or {}
 		data.purchases.tempBuffs[cfg.tempBuff.stat] = {
@@ -101,6 +105,26 @@ end
 function PurchaseService.GetRerollCredits(player: Player): number
 	local data = _profile and _profile.GetProfile(player)
 	return (data and data.purchases.rerollCredits) or 0
+end
+
+-- T4 (paczki): odczyt kredytów Robux-paczek (granted idempotentnie w grantDevProduct powyżej).
+function PurchaseService.GetPackCredits(player: Player, packKey: string): number
+	local data = _profile and _profile.GetProfile(player)
+	local credits = data and data.purchases.packCredits
+	return (credits and credits[packKey]) or 0
+end
+
+-- Atomowy check-and-decrement -- PurchaseService zostaje JEDYNYM writerem profile.purchases nawet
+-- dla konsumpcji (PackService woła TO, nie dotyka profile.purchases.packCredits bezpośrednio).
+function PurchaseService.ConsumePackCredit(player: Player, packKey: string): boolean
+	local data = _profile and _profile.GetProfile(player)
+	local credits = data and data.purchases.packCredits
+	local n = (credits and credits[packKey]) or 0
+	if n < 1 then
+		return false
+	end
+	credits[packKey] = n - 1
+	return true
 end
 
 function PurchaseService.Init()

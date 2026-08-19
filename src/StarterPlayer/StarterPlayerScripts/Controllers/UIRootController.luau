@@ -17,6 +17,7 @@ local ROOTS = {
 	{ name = "Shop", order = 30 },
 	{ name = "StartPick", order = 32 }, -- Faza 4 Krok 0: modal picku startowego, nad Shop (pierwsza decyzja runu)
 	{ name = "Monetization", order = 34 }, -- Faza 4 Krok 4: sklep Robux + tabela szans, nad StartPick
+	{ name = "Packs", order = 35 }, -- T4: katalog paczek Mega/Super/Legend + odds-gate modal, nad Monetization
 	{ name = "ScoreFx", order = 40 },
 	{ name = "Ftue", order = 42 }, -- Faza 4 Krok 5: hinty/toasty onboardingu, nad ScoreFx (żeby "LEVEL 1" nie chowało się pod popup wyniku)
 	{ name = "Index", order = 45 }, -- Faza 2b: panel kolekcji, nad ScoreFx

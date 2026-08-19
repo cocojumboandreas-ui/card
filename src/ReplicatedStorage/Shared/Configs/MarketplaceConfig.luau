@@ -34,6 +34,13 @@ MarketplaceConfig.DevProducts = {
 	RerollPackX5 = { id = 0, priceRobux = 29, rerollCredits = 5 },
 	ServerLuckX2 = { id = 0, priceRobux = 79, serverBuff = { stat = "luck", mult = 2, durationSec = 1800 } }, -- TODO: brak konsumenta (Faza 4 Krok 2 zakres)
 	StarterPack = { id = 0, priceRobux = 199, essence = 1000, guaranteedEpicTotem = true }, -- TODO: guaranteedEpicTotem brak konsumenta
+
+	-- T4: paczki Mega/Super/Legend. packCredit = klucz w PackConfig.Packs ORAZ klucz zapisu w
+	-- data.purchases.packCredits (grantDevProduct powyżej) -- konsumowany atomowo przez
+	-- PurchaseService.ConsumePackCredit w PackService.OpenPack(method="robux").
+	PackMega = { id = 0, priceRobux = 149, packCredit = "Mega" },
+	PackSuper = { id = 0, priceRobux = 299, packCredit = "Super" },
+	PackLegend = { id = 0, priceRobux = 599, packCredit = "Legend" },
 }
 
 return MarketplaceConfig
