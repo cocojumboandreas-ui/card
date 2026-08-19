@@ -1,10 +1,52 @@
 # STATUS — Roll a Rune
 
-Ostatnia aktualizacja: 2026-08-18, fix compliance odds-bug (PolicyService vs RollService rozjazd)
-— patrz sekcja "Odds-bug fix (compliance, 2026-08-18)" ponizej. Blokowal System 4 (packi), teraz
-odblokowany, ALE packi wciaz czekaja na decyzje Andreasa o strukturze tabel (patrz
-PACKS_PLAN_PROPOSAL.md) — NIE zaczynac kodu paczek bez tego. Poprzedni wpis: System 3 (Merge/
-Craft) zbudowany i zamkniety. Czytaj to + `git log` zamiast polegac na pamieci poprzedniej sesji.
+Ostatnia aktualizacja: 2026-08-19, **PIVOT: start przejscia z plaskiej karcianki na 3D
+COLLECTION-TYCOON** — patrz sekcja "Pivot na tycoon — T1 szkielet plotu (2026-08-19)" ponizej.
+Silnik/Stworki/paczki/merge/esencja z karcianki ZOSTAJA i wpinaja sie jako tresc, nic nie
+wyrzucone. Run/deckbuilder -> tryb wtorny na pozniej. Poprzedni stan (System 4 packi/daily/luck
+zablokowane na decyzji Andreasa o strukturze tabel) jest teraz W TLE, nie skasowany — patrz
+PACKS_PLAN_PROPOSAL.md, wraca gdy tycoon-pivot dogoni ten punkt. Czytaj to + `git log` zamiast
+polegac na pamieci poprzedniej sesji.
+
+## Pivot na tycoon — T1 szkielet plotu (2026-08-19)
+
+Zbudowany **funkcjonalny szkielet plotu** (nie wyglad — to zrobi recznie Andreas/artysta
+pozniej), przez `robloxstudio` MCP, `execute_luau` (edit-mode), pod
+`game.ReplicatedStorage.PlotTemplate`. Motyw docelowy "Swit" (pastelowe niebo, bialy
+kamien+zloto) — teraz tylko zgrubny blockout na Marble/SmoothPlastic/Neon.
+
+**Kontrakt nazw (na tym stoja T2/T3/T5, nie zmieniac bez koordynacji):**
+- `PlotTemplate` [Model, PrimaryPart=`PlotOrigin`] — kwadrat 64x64 studow, `Floor` top=Y0.
+- `Slot1`..`Slot10` [Model] — wzdluz `BackWall` (Z=-30.5), rowny odstep co 6 studow (X od -27 do
+  27), kazdy z `SlotAnchor` (PrimaryPart) + `CardMount` [Attachment].
+- `CardFrame` [Model] w kazdym Slot — `Frame` (SmoothPlastic) niesie `SurfaceGui`
+  (Face=Back, bo sciana/karty patrza w +Z) -> `CardArt` [ImageLabel], plus `RarityGlow` (Neon,
+  placeholder szary) i `RarityBorder` (zloto) jako warstwy ZA `Frame` (nie przed — inaczej
+  zaslanialyby obrazek). Test-obraz w `CardArt` = `rbxassetid://118458523871140` (emberpup,
+  prawdziwy juz-uploadowany asset z `CardArtConfig.luau` — dowod ze pipeline realnie renderuje,
+  nie fikcyjny placeholder).
+- `EssenceGenerator` [Part] — Neon, srodek plotu (0,1.5,0), placeholder fontanny na tick T3.
+- `EntranceArch` [Model] (PillarLeft/PillarRight/Beam) + `Nameplate` [Part+SurfaceGui.TextLabel
+  "PLAYER'S PLOT"] — przy krawedzi wejsciowej (Z=+30, naprzeciw BackWall).
+
+**Acceptance check — wszystkie 3 PASS, zweryfikowane live w Studio:**
+1. Duplikacja: `Clone():PivotTo(CFrame.new(100,0,100))` na tescie w Workspace — `PlotOrigin`
+   wyladowal dokladnie na zadanym CFrame (bit-dokladnie, nie przyblizenie).
+2. Wszystkie 10 `CardFrame.Frame.SurfaceGui.CardArt.Image` zwracaja poprawny
+   `rbxassetid://118458523871140` — potwierdzone petla przez `execute_luau` I zrzutem ekranu
+   (10 kart z widocznym obrazkiem na scianie).
+3. Nazwy dokladnie wg kontraktu (`get_instance_children` na klonie: `PlotOrigin`/`Floor`/
+   `BackWall`/`EssenceGenerator`/`EntranceArch`/`Nameplate`/`Slot1..Slot10`, po 2 dziecka w
+   kazdym Slot: `SlotAnchor`+`CardFrame`).
+
+**WAZNE — ten projekt NIE MA Rojo/`project.json`** (patrz regula wyzej w tym pliku o
+`Controllers`), wiec `PlotTemplate` istnieje TYLKO w zywym Studio DataModelu. **Andreas musi
+zapisac plac** (Ctrl+S w Studio), inaczej znika przy zamknieciu — nic z tego nie jest jeszcze w
+gicie/na dysku, bo to czysto instancje, nie skrypty.
+
+**Celowo NIE zrobione w T1 (kolejne kroki):** brak serwerowego systemu placowania plotow (T2/T3),
+brak realnego tick esencji, brak paczek/odwiedzania. Odds-bug i packi (System 4) queued przed
+T4, jak wczesniej.
 
 ## Odds-bug fix (compliance, 2026-08-18)
 
