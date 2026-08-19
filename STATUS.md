@@ -521,6 +521,77 @@ dziala, bo `SpawnLocation` po prostu tam stoi), reconciliacja pozycji `PlotServi
 kotwicami (plan opisany wyzej), stragan -> otwarcie sklepu paczek, portal -> wejscie do biegu.
 To byl przebieg czysto wizualny/geometryczny.
 
+## HUB/Swiat — ploty na kotwicach, podjazdy-tasmy, celowa dekoracja (2026-08-19, drugi przebieg)
+
+**Cel Andreasa: "ma byc PELNIEJ"** — zamiast 8 golych kotwic z mostkami, kazda z 8 wysp ma teraz
+widoczny, pomalowany plot (koncept od razu czytelny), a plaskie mostki zastapione charakternymi
+podjazdami-tasmami. Zrzut ekranu wylacznie na koncu (nie w polowie), zgodnie z instrukcja.
+
+**WARUNEK #0 — jak poprzednio, z JEDNYM jawnym wyjatkiem tego przebiegu.** Cala geometria (kotwice
+podniesione na wysokosc wysp, `ShowcasePlot` na kazdej kotwicy, 8 rampy z `Bridges`, przegrupowana
+`Decor`) zbudowana przez `execute_luau target="edit"` — realne trwale Party/Model, zero
+`Instance.new` w runtime. **Wyjatek: `Workspace.Hub.ConveyorDriver`** to jeden `Script`
+uruchamiany w grze (`RunService.Heartbeat` + `CollectionService:GetTagged("ConveyorLane")`,
+przesuwa `HumanoidRootPart` dotykajacych graczy wzdluz atrybutu `ConveyorDir`/`ConveyorSpeed` per
+part) — Andreas potwierdzil explicite, ze to "funkcjonalne zachowanie partu, nie generowanie
+geometrii w runtime", wiec NIE lamie WARUNKU #0. Sam Script jest jeden, trwaly, tworzony raz w
+edit-mode; jego rola to WYLACZNIE ruch, nigdy tworzenie/kasowanie geometrii.
+
+**1. Ploty na 8 kotwicach — pelna reconciliacja z `PlotService`, zero duplikacji geometrii.**
+Kazda `PlotAnchorN` dostala pelny pomalowany klon `ServerStorage.PlotTemplate` (`ShowcasePlot`,
+motyw Ocean z Kroku 3 pierwszego przebiegu) jako trwale dziecko, `PivotTo`'wany na
+`AnchorMarker.CFrame`. `PlotService.luau` przepisany: nowa `buildAnchorSlots()` czyta
+`Workspace.Hub.PlotAnchors` (sortowanie po atrybucie `Index`), dla kazdej kotwicy bierze
+`AnchorMarker.CFrame` + referencje do `ShowcasePlot`; fallback na stara siatke 4x2
+(`buildGridCFrames`) TYLKO gdy `Hub.PlotAnchors` jeszcze nie istnieje (swiezy plac przed Ctrl+S) —
+zeby serwer nie wywalal sie na starcie zamiast degradowac. `allocatePlot` przy przydziale
+kotwicy realnemu graczowi PRZENOSI `ShowcasePlot` do `ServerStorage.HiddenShowcases` (reparent,
+nie `Destroy`) zamiast go niszczyc — klon gracza staje DOKLADNIE w tym samym CFrame, wiec zero
+podwojnej geometrii. `releasePlot` przy wyjsciu gracza przywraca `ShowcasePlot.Parent` na
+oryginalna kotwice (`showcaseHome`), wiec hub nie "pustoszeje" po wylogowaniu — nie trzeba nic
+przebudowywac w edit-mode. Zweryfikowane solo-playtestem (`eval_server_runtime`): dolaczajacy
+gracz dostal plot na `Y=22` (wysokosc wyspy), a licznik `HiddenShowcases` wzrosl dokladnie do 1.
+Push do zywego `ModuleScript` przez `set_script_source` (manualny sync, projekt bez Rojo).
+
+**2. Podjazdy-tasmy zamiast plaskich mostkow.** `Workspace.Hub.Bridges` przebudowany na 8
+`Ramp1..8`: `LaneUp`/`LaneDown` (deski Slate, kazda z atrybutami `ConveyorDir`/`ConveyorSpeed=14`,
+otagowane `CollectionService` tagiem `"ConveyorLane"`), po 1 kosmetycznym pasie Neon na kazdej
+(cyjan w gore, roz w dol) + 3 zlote poreczki Neon na rampe. Geometria idzie od krawedzi placu
+(promien 52, Y=0) do wewnetrznej krawedzi wyspy (promien 106, Y=22) — kierunek liczony wylacznie
+w plaszczyznie XZ (`Vector3.new(0,1,0):Cross(dirXZ)`), zeby offset pasow nie skrecal sie na
+pochyleniu. Jeden wspoldzielony `ConveyorDriver` Script obsluguje wszystkie 16 pasow generycznie
+(bez hardkodowanych sciezek) przez tag + atrybuty.
+
+**Podniesienie wysp: `ANCHOR_Y=22`.** Kotwice/pady/showcase-ploty przeniesione z Y=0 (plaskie w
+pierwszym przebiegu) na Y=22 — czytelne "plywajace wyspy" zgodnie z koncepcyjnym "pastelowe
+plywajace wyspy", nie plaski teren. `AnchorMarker` nadal patrzy `CFrame.lookAt` w strone centrum
+placu, tylko na nowej wysokosci.
+
+**3. Dekoracja doscisnieta celowo, nie losowo.** `Workspace.Hub.Decor` wyczyszczony i
+przebudowany: 4 klastry krysztalow u podstawy fontanny (promien 13), 8 klastrow (na przemian
+koral/roslina) w lukach MIEDZY 8 rampami na krawedzi placu (promien 45, katy 0/45/90.../315 —
+dokladnie w szczelinach miedzy kotwicami przesunietymi o 22.5 stopnia), 16 klastrow (po 2 na
+wyspe) w "tylnych rogach" kazdej wyspy (przeciwlegle od wjazdu rampy) — 28 klastrow celowych
+zamiast 34 losowo rozrzuconych z pierwszego przebiegu.
+
+**4. Most Studio.** Sprawdzony `get_place_info` na starcie przebiegu — zywy, bez potrzeby
+wznawiania.
+
+**Zrzuty ekranu:** zrobione dopiero na koncu (kamera edytora nie zareagowala na wielokrotne zmiany
+`cameraPosition`/`cameraLookAt` w kolejnych wywolaniach — trzy proby dały identyczny kadr), ale
+uzyskany kadr jest jednoczesnie z gory i pod katem (kamera podniesiona i pochylona w dol), wiec
+pokazuje caly efekt: 8 pomalowanych plotow na wyspach, zlote rampy z pasami, fontanna, celowa
+dekoracja. Pokazany Andreasowi w tej sesji.
+
+**Andreas: Ctrl+S w Studio.** Jak w pierwszym przebiegu — cala geometria (kotwice/showcase/rampy/
+ConveyorDriver/decor) zyje wylacznie w zywym DataModelu i zniknie bez zapisu. Tym razem DODATKOWO
+jest realna zmiana kodu w repo (`PlotService.luau`) — ta jest juz zapisana na dysku i zacommitowana
+niezaleznie od Ctrl+S w Studio, ale bez zapisu placu przy nastepnym starcie Studio `PlotService`
+spadnie z powrotem na fallback (stara siatka 4x2), bo `Hub.PlotAnchors` zniknie.
+
+**Poza zakresem (kolejny przebieg):** stragan -> otwarcie sklepu paczek, portal -> wejscie do
+biegu — jak zapowiedziane, niezmienione.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu

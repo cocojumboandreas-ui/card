@@ -35,18 +35,22 @@ local GRID_COLS = 4
 local GRID_SPACING = 100 -- footprint 64 + zapas
 local GRID_BASE_X = -150
 local GRID_BASE_Z = 250 -- offset od SpawnLocation(0,0.5,0), zero kolizji z domyślnym Baseplate
-local PLOT_COUNT = 8 -- start N (Andreas: "start np. 6-12"), 4x2 siatka
+local PLOT_COUNT = 8 -- start N (Andreas: "start np. 6-12"), 4x2 siatka -- TYLKO fallback, patrz buildAnchorSlots
 
 local EMPTY_BORDER_COLOR = Color3.fromRGB(120, 120, 125) -- przygaszony placeholder, pusty slot
+
+type PlotSlot = { cframe: CFrame, showcase: Model?, showcaseHome: Instance? }
 
 local _profileService = nil
 local _indexService = nil
 local _seedService = nil
 local _template: Model? = nil
 local _plotsFolder: Folder? = nil
+local _hiddenShowcaseHolder: Folder? = nil
 
-local _freeCFrames: { CFrame } = {}
+local _freeSlots: { PlotSlot } = {}
 local _playerPlot: { [Player]: Model } = {}
+local _playerSlot: { [Player]: PlotSlot } = {}
 
 -- T5 (odwiedziny) — wypełnia Nameplate.SurfaceGui.PlayerName żywym stanem gracza. Property
 -- replication "za darmo", ten sam wzorzec co CardArt.Image/RarityBorder.Color w renderSlot.
@@ -67,6 +71,46 @@ local function buildGridCFrames(): { CFrame }
 		local x = GRID_BASE_X + col * GRID_SPACING
 		local z = GRID_BASE_Z + row * GRID_SPACING
 		table.insert(list, CFrame.new(x, 0, z))
+	end
+	return list
+end
+
+-- Reconciliacja z hub-buildem (STATUS.md "HUB/Swiat"): 8 autorskich kotwic w
+-- Workspace.Hub.PlotAnchors.PlotAnchor1..8 (realne Party, zbudowane w edit-mode) niosą docelowy
+-- CFrame (AnchorMarker, +Z już skierowane do centrum placu -- konwencja Nameplate z T1) i
+-- opcjonalnie ShowcasePlot -- pomalowaną, statyczną geometrię plotu widoczną dopóki kotwica jest
+-- wolna. Fallback na starą siatkę TYLKO gdy hub jeszcze nie istnieje w tym miejscu (np. świeże
+-- Studio przed Ctrl+S hub-buildu) -- bez tego serwer wywaliłby się na starcie zamiast po prostu
+-- degradować do starego zachowania.
+local function buildAnchorSlots(): { PlotSlot }
+	local hub = Workspace:FindFirstChild("Hub")
+	local anchorsFolder = hub and hub:FindFirstChild("PlotAnchors")
+	if not anchorsFolder then
+		warn("[PlotService] Workspace.Hub.PlotAnchors brak -- fallback na starą siatkę 4x2")
+		local list = {}
+		for _, cf in buildGridCFrames() do
+			table.insert(list, { cframe = cf, showcase = nil, showcaseHome = nil })
+		end
+		return list
+	end
+
+	local anchors = {}
+	for _, child in anchorsFolder:GetChildren() do
+		if child:IsA("Model") then
+			table.insert(anchors, child)
+		end
+	end
+	table.sort(anchors, function(a, b)
+		return (a:GetAttribute("Index") or 0) < (b:GetAttribute("Index") or 0)
+	end)
+
+	local list = {}
+	for _, anchorModel in anchors do
+		local marker = anchorModel:FindFirstChild("AnchorMarker")
+		if marker and marker:IsA("BasePart") then
+			local showcase = anchorModel:FindFirstChild("ShowcasePlot")
+			table.insert(list, { cframe = marker.CFrame, showcase = showcase, showcaseHome = anchorModel })
+		end
 	end
 	return list
 end
@@ -117,19 +161,27 @@ local function allocatePlot(player: Player)
 	if _playerPlot[player] then
 		return -- już ma plot (np. podwójny ProfileLoaded) -- idempotencja
 	end
-	local cf = table.remove(_freeCFrames)
-	if not cf then
-		warn("[PlotService] brak wolnych plotów (PLOT_COUNT=" .. PLOT_COUNT .. "), gracz " .. player.Name .. " bez plotu")
+	local slot = table.remove(_freeSlots)
+	if not slot then
+		warn("[PlotService] brak wolnych plotów, gracz " .. player.Name .. " bez plotu")
 		return
 	end
 
 	local clone = (_template :: Model):Clone()
 	clone.Name = "Plot_" .. player.UserId
-	clone:PivotTo(cf)
+	clone:PivotTo(slot.cframe)
 	clone:SetAttribute("OwnerUserId", player.UserId)
 	clone.Parent = _plotsFolder
 
+	-- Chowamy statyczną (pomalowaną) geometrię pod tą kotwicą zamiast ją niszczyć -- klon gracza
+	-- stoi DOKŁADNIE w tym samym CFrame, więc zero podwójnej geometrii; po releasePlot showcase
+	-- wraca na miejsce, więc hub nie "pustoszeje" przy wylogowaniu gracza.
+	if slot.showcase then
+		slot.showcase.Parent = _hiddenShowcaseHolder
+	end
+
 	_playerPlot[player] = clone
+	_playerSlot[player] = slot
 	renderAllSlots(player, clone)
 
 	local data = _profileService and _profileService.GetProfile(player)
@@ -141,9 +193,17 @@ local function releasePlot(player: Player)
 	if not plot then
 		return
 	end
-	table.insert(_freeCFrames, plot:GetPivot())
+	local slot = _playerSlot[player]
 	plot:Destroy()
 	_playerPlot[player] = nil
+	_playerSlot[player] = nil
+
+	if slot then
+		if slot.showcase and slot.showcaseHome then
+			slot.showcase.Parent = slot.showcaseHome
+		end
+		table.insert(_freeSlots, slot)
+	end
 end
 
 -- Zapis serwer-autorytatywny jednego slotu. totemId=nil/"" czyści slot (zawsze dozwolone).
@@ -259,7 +319,15 @@ function PlotService.Start()
 		_plotsFolder = f
 	end
 
-	_freeCFrames = buildGridCFrames()
+	_hiddenShowcaseHolder = ServerStorage:FindFirstChild("HiddenShowcases") :: Folder?
+	if not _hiddenShowcaseHolder then
+		local f = Instance.new("Folder")
+		f.Name = "HiddenShowcases"
+		f.Parent = ServerStorage
+		_hiddenShowcaseHolder = f
+	end
+
+	_freeSlots = buildAnchorSlots()
 
 	_profileService.ProfileLoaded:Connect(function(player: Player)
 		allocatePlot(player)
