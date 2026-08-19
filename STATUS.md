@@ -790,6 +790,65 @@ zywym DataModelu — zero zmian w `src/`, zero commita kodu, wpis w STATUS.md po
 **Poza zakresem / nastepny krok:** oddzielne zgloszenie Andreasa o "schodach"/przesunieciu mapy —
 patrz nizej, osobny watek w toku.
 
+## HUB/Swiat — naprawa ramp/"schodow" (przebicie przez podloge plotu) (2026-08-19, szosty przebieg)
+
+**Zgloszenie Andreasa (kolokwialnie "schody"):** "te schody na gorze przebijaja mape gorna, ja je
+dolozylem do dolnej mapy zeby byly sklejone ale wyglada to zle". W scenie nie ma osobnych obiektow
+"schody" — chodzi o 8 ramp-przenosnikow (`Bridges.Ramp1..8`) z poprzedniego (czwartego) przebiegu.
+Przed poprawka zweryfikowane geometrycznie: gorny (plotowy) koniec kazdej z 16 lini (`LaneUp`+
+`LaneDown` x8) przebijal podloge plotu o **~0.45-0.48 studa** na 7 z 8 ramp, a na **`Ramp3` az o
+6.18 studa** (widoczny, ostry "kant" wystajacy z podlogi) — dokladnie zgodne ze zgloszeniem.
+
+**Przyczyna:** poprzedni przebieg ustawial srodek (nie gorna powierzchnie) rampy na `floorTopY`,
+wiec grubosc bryly (`Size.Y≈1.04`) i przechylenie (`~17.3°`) dawaly systematyczny naddatek
+`≈ (Size.Y/2)*cos(tilt) ≈ 0.5 studa` nad podloga na wszystkich rampach. Na `Ramp3` doszedl drugi,
+niezalezny blad: dolny (placowy) koniec wcale nie byl osadzony w podlodze placu (min. wysokosc
++4.29 zamiast ok. -1.4 jak reszta) — rampa "wisiala" w powietrzu przy placu, co przy tym samym
+kacie nachylenia co reszta wywindowalo gorny koniec dodatkowo w gore.
+
+**Fix:** kazda z 16 lini przeliczona od zera z prawidlowej trygonometrii zamiast stalego,
+skopiowanego kata: policzony na zywo `plazaFloorTopY` (poprawnie, z uwzglednieniem rotacji
+`PlazaFloor` — Part obrocony 90° w Z, wczesniejsza pulapka z rotowanymi Partami z czwartego
+przebiegu powtorzona i tym razem obsluzona generyczna formula `|RightVector.Y|*SizeX +
+|UpVector.Y|*SizeY + |LookVector.Y|*SizeZ`, nie zalozeniem ktora os to grubosc) oraz
+`floorTopY` per-kotwica (jak wczesniej). Dolny koniec kazdej linii osadzony na `plazaFloorTopY -
+0.9` (pod plac, niewidoczny), gorny koniec dokladnie na `floorTopY - 0.03` (goma powierzchnia, nie
+srodek bryly — ten sam blad naprawiony u zrodla), kat i dlugosc dopasowane iteracyjnie (5 iteracji,
+zbiega natychmiast) tak, zeby oba konce trafialy dokladnie w cel niezaleznie od lokalnej roznicy
+wysokosci danej kotwicy — eliminuje to takze systemowo mozliwosc powtorki bledu `Ramp3` na kolejnych
+kotwicach. Pozycja/kierunek (promien, yaw) NIE ruszone — tylko wysokosc/kat/dlugosc. `Stripe`x2 i
+`Rail`x3 per rampa przeliczone wzgledem WLASNEGO wlasciciela (`LaneUp` lub `LaneDown`, dopasowane
+po odleglosci) z zachowanym lokalnym przesunieciem — podazaja za nowa geometria automatycznie.
+
+**Zweryfikowane na zywo w `solo_playtest`:**
+- **Brak przebicia:** dla wszystkich 16 lini `maxY≈21.47` vs `floorTop=21.50` (margines 0.03, jak
+  zaplanowano), `minY≈-1.40` vs `plazaTop=0.00` (osadzone pod placem, niewidoczne) — zero przebic,
+  zero "wiszacych" koncow.
+- **Ciaglosc:** 20-punktowy raycast po srodku kazdej z 8 lini `LaneUp` — **zero trafien pustych**
+  na wszystkich 8, w tym na `Ramp3` i na REALNYM (nie showcase) plocie gracza `Plot_10945102665`
+  pod kotwica 8 (PlotAnchor8.ShowcasePlot zastapiony w trakcie playtestu prawdziwym plotem gracza —
+  test wykryl to automatycznie przez fallback po najblizszym `Floor` w `Workspace.Plots`).
+- **`ConveyorLane` tag:** 16/16 tagow nienaruszonych (fix zmienial tylko `CFrame`/`Size`, nie
+  atrybuty/tagi) — `ConveyorDriver` dziala bez zadnej zmiany kodu.
+- **Bariery/respawn:** szybki smoke-test po fixie — pchniecie 40 stud/s w bok przy plocie 1 nie
+  wyrzucilo gracza poza mape (Y pozostal w rozsadnym zakresie), upadek na Y=-120 zakonczyl sie
+  powrotem gracza dokladnie na spawn placu (0, 4, 40) po ~1.5s — `FallRespawnService`/`Barriers`
+  (trzeci przebieg) dzialaja bez zmian, bo ten fix nie dotykal ich geometrii.
+
+**Odsuniecie mapy — NIE wykonane.** Andreasowa czesc "odsun troche mape" byla proba wlasnego
+prowizorycznego obejscia problemu z przebiciem (dokladanie schodow do dolnej mapy) — po naprawie
+geometrii ramp u zrodla przebicie znika bez przesuwania kotwic/wysp, wiec przesuwanie mapy nie jest
+juz potrzebne do rozwiazania zgloszonego problemu. Jesli Andreasowi chodzilo o cos wiecej (np. po
+prostu wiecej odstepu miedzy placem a plotami z innych wzgledow estetycznych) — do doprecyzowania,
+nie zgadywane w tym przebiegu.
+
+**Zrzut ekranu: nadal niedostepny** (okno Studio zminimalizowane, ten sam blad narzedzia co w
+piatym przebiegu) — zweryfikowane wylacznie programowo + raycastami w zywym playteście.
+
+**Andreas: Ctrl+S w Studio.** Ten przebieg nadpisuje `CFrame`/`Size` 16 partow `LaneUp`/`LaneDown`
++ 40 partow `Stripe`/`Rail` (8 rampy x 5 zaleznych) pod `Workspace.Hub.Bridges` — zero zmian w
+`src/`, wpis w STATUS.md ponizej to caly "commit" tego przebiegu.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
