@@ -662,6 +662,72 @@ Bez zapisu placu caly polish i fix orientacji znikaja przy nastepnym restarcie S
 **Poza zakresem (kolejny przebieg):** stragan -> otwarcie sklepu paczek, portal -> wejscie do
 biegu, spawn/inne podpiecia — jak zapowiedziane, niezmienione.
 
+## HUB/Swiat — flush rampy + fall-prevention (2026-08-19, czwarty przebieg)
+
+**Dwie poprawki grywalnosci od Andreasa: (1) rampy nie dochodzily do konca, (2) brak
+zabezpieczenia przed spadnieciem z mapy.**
+
+**1. Flush rampy.** Zdiagnozowane precyzyjnie przed fixem: kazda z 8 ramp konczyla sie na
+promieniu 106 (Y=22), a realna bliska krawedz podlogi plotu byla na promieniu 118 (Y=21.5,
+skorygowane wczesniej z rotowanego-Cylindra floorTopY) — jednolita ~12.5-studowa dziura na
+wszystkich 8, plus 0.5-studowy uskok wysokosci. Rampy przebudowane od zera
+(`LaneUp`/`LaneDown`/`Stripe`x2/`Rail`x3 per rampa) z korekta obu koncow: strona placu wciagnieta
+z promienia 52 na 50.5 (zakladka w `PlazaTrim`), strona plotu wysunieta z 106 na 119.5 (zakladka w
+`Floor`), Y konca ustawiony dokladnie na `floorTopY` (per-kotwica, odczytany na zywo, nie
+hardkodowany). Zachowane 1:1: `ConveyorDir`/`ConveyorSpeed=14` (attrybuty), tag
+`CollectionService "ConveyorLane"`, materialy/kolory/wzgledne przesuniecia pasow i poreczy (Stripe
+lateral=0 vert=0.58, Rail lateral -2.5/3.0/8.5 vert=1.70 wzgledem `LaneUp`) — istniejacy
+`ConveyorDriver` Script (WARUNEK #0 wyjatek z poprzedniego przebiegu) dziala bez zadnej zmiany
+kodu, bo wykrywa pasy po tagu+atrybutach, nie po nazwie/scieżce.
+
+Zweryfikowane matematycznie po fixie na wszystkich 8: `floorTop=21.50`, `laneEndY=21.50`,
+`laneEndR=119.54` (zakladka w podloge), `laneStartR=50.59` (zakladka w rabek placu) — identyczne
+na kazdej kotwicy.
+
+**Zweryfikowane NA ZYWO** (Andreas jawnie zazadal, nie tylko geometria): symulacja klawiatury
+(`simulate_keyboard_input`) niedostepna w tym srodowisku (okno Studio zminimalizowane/niewidoczne
+— narzedzie wymaga widocznego okna), wiec weryfikacja przez `eval_server_runtime` w realnym
+uruchomionym playteście (`solo_playtest`):
+- **Ciaglosc sciezki plac<->plot:** 20-punktowy raycast (`RespectCanCollide=true`, ignoruje
+  dekoracyjne nie-kolidujace Party jak `Stripe`) wzdluz calej trasy od placu przez rampe na
+  podloge plotu — **zero trafien pustych** (`anyMiss=false`), plynny wzrost wysokosci
+  `PlazaFloor(Y=0)` -> `LaneUp(Y=0.48..16.40, rosnaco)` -> `Pad(Y=21.00)` -> `Floor/Tile(Y=21.5-
+  21.85)`, bez zadnej dziury.
+- **Bariera trzyma:** gracz teleportowany tuz przy krawedzi bocznej plotu (localX=30, sciana na
+  32), popchniety predkoscia 40 stud/s na zewnatrz przez 1s — zatrzymany na localX=30.45, NIE
+  przebil sciany.
+- **Respawn dziala:** gracz teleportowany na Y=-120 (ponizej progu -75), po 1.5s (2x cykl
+  `FallRespawnService`) wyladowal z powrotem przy `SpawnLocation` placu (~(0, 4, 40)).
+
+**2. Fall-prevention.** `Workspace.Hub.Barriers` (nowy folder, Part'y `CanCollide=true
+Transparency=1`):
+- Per-plot (8x `PlotBarriersN`): 2 sciany boczne (localX=-32/+32, pelna dlugosc), 2 krotkie
+  naroznik-zaslepki na krawedzi zewnetrznej (`BackWall` juz kryje wiekszosc tej krawedzi, 60/64
+  studow — zaslepki lataja 2-studowe szczeliny po bokach), 2 segmenty na krawedzi wewnetrznej
+  (wejsciowej) z przerwa `localX ∈ [-6.5, 6.5]` dokladnie na szerokosc wjazdu rampy (pasy+poreczy
+  ~11 studow).
+- Pierscien wokol placu (`PlazaRing`, 72 segmenty co 5 stopni na promieniu 53.5, chordowa
+  zaslepka z 8% zakladki miedzy sasiednimi), z 8 lukami po 15 stopni (`GAP_HALF_ANGLE=7.5°`)
+  dokladnie w kierunku kazdej z 8 ramp (kat liczony na zywo z `AnchorMarker.Position`, nie
+  hardkodowany) — 48 z 72 segmentow faktycznie postawionych, 24 pominietych na luki wjazdowe.
+
+**3. `ServerScriptService.FallRespawnService`** (nowy `Script`, WARUNEK #0 wyjatek analogiczny do
+`ConveyorDriver` — zachowanie partu/gracza, nie generowanie geometrii w runtime): petla per-gracz
+co 0.5s, jesli `HumanoidRootPart.Position.Y < -75` (dobry margines ponizej najnizszego realnego
+elementu huba — `PlazaFloor` Y=-4, `Floor` plotu Y~20.5) -> `PivotTo` na `Workspace.SpawnLocation`
++3 study w gore, zerowanie predkosci. Watchuje `PlayerAdded`/`CharacterAdded`, obsluguje juz
+polaczonych graczy przy starcie skryptu.
+
+**4. Most Studio.** Zywy przez caly przebieg, solo_playtest start/stop bez problemow.
+
+**Andreas: Ctrl+S w Studio.** Caly ten przebieg (przebudowane 8 `Ramp1..8`, nowy
+`Workspace.Hub.Barriers`, nowy `ServerScriptService.FallRespawnService`) zyje wylacznie w zywym
+DataModelu — zero zmian w `src/`, zero commita kodu, wpis w STATUS.md ponizej to caly "commit"
+tego przebiegu. Bez zapisu placu wszystko znika przy nastepnym restarcie Studio.
+
+**Poza zakresem (kolejny przebieg, kierunek do decyzji Andreasa):** stragan -> otwarcie sklepu
+paczek, portal -> wejscie do biegu, spawn/inne podpiecia.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
