@@ -592,6 +592,76 @@ spadnie z powrotem na fallback (stara siatka 4x2), bo `Hub.PlotAnchors` zniknie.
 **Poza zakresem (kolejny przebieg):** stragan -> otwarcie sklepu paczek, portal -> wejscie do
 biegu — jak zapowiedziane, niezmienione.
 
+## HUB/Swiat — fix orientacji kart + polish plotow (2026-08-19, trzeci przebieg)
+
+**Zakres: WYLACZNIE build/geometria, zero zmian w `PlotService.luau` ani innym kodzie repo.**
+Andreas zlapal bug: po wjezdzie rampa gracz od razu widzial sciane kart zamiast wejsc na plot i
+dojsc do kart na dalekim koncu.
+
+**1. Root cause i fix orientacji.** Zdiagnozowane matematycznie (nie na oko): kazdy
+`AnchorMarker.CFrame` byl budowany przez `CFrame.lookAt(islandPos, plazaCenter)` w poprzednim
+przebiegu — to ustawia `LookVector` (a wiec lokalny `-Z`) w strone placu, co oznacza ze lokalny
+`+Z` (gdzie w `PlotTemplate` siedzi `Nameplate`/wejscie, Z=+29.7) mapowal sie na kierunek NA
+ZEWNATRZ (od placu), a lokalny `-Z` (gdzie siedzi `BackWall` ze slotami kart, Z=-29..-30.5)
+mapowal sie DO WEWNATRZ (w strone placu/rampy) — dokladnie odwrotnie niz trzeba, stad karty od
+razu przy wjezdzie. Zweryfikowane empirycznie przed fixem (`BackWall` mial ujemny iloczyn
+skalarny z kierunkiem "na zewnatrz" = po stronie placu; `Nameplate` dodatni = po stronie
+zewnetrznej). **Fix: kazdy `AnchorMarker.CFrame = AnchorMarker.CFrame * CFrame.Angles(0, math.pi,
+0)`** (obrot 180 stopni wokol Y) dla wszystkich 8 kotwic — bez zmiany pozycji, tylko orientacja.
+Po fixie zweryfikowane ponownie na wszystkich 8: `BackWall` dodatni iloczyn (na zewnatrz, daleki
+koniec) ok. +30.5, `Nameplate` ujemny (blisko placu/rampy, wejscie) ok. -29.7 — spojne na kazdej
+kotwicy. Zero zmian w `PlotService.luau`: serwis i tak czyta `AnchorMarker.CFrame` na zywo przy
+`Start()`, wiec poprawiona orientacja automatycznie trafia do realnych plotow graczy bez zadnej
+zmiany kodu.
+
+**2. Polish `ServerStorage.PlotTemplate`** (jeden template = automatycznie polish trafia i do
+8 showcase'ow, i do kazdego przyszlego live-plotu gracza, bo `PlotService.allocatePlot` klonuje
+ten sam template):
+- `FloorTiles` — szachownica 4x4 (16 plytek, 2 odcienie fiolet-blekit Slate) na podlodze zamiast
+  plaskiego jednolitego koloru.
+- `FloorTrim` (zlota Neon ramka na krawedzi, 4 belki) + `FloorGlow` (cyjanowa Neon obwodka wciecia
+  do wewnatrz) — ta sama paleta co plac (zloty rabek + cyjan fontanny).
+- `CornerPillars` — 4 niskie filary Slate ze zlota kula na szczycie w rogach podlogi (bogatsza
+  krawedz zamiast golej platformy).
+- `CornerClusters` — 2 klastry (koral + roslina, po 3 kulki Neon roznej wielkosci) przy tylnych
+  rogach, blisko `BackWall`.
+- `PlotFountain` — cyjanowy szklany basen (Glass, transparency 0.35) otaczajacy istniejacy
+  `EssenceGenerator` + `PointLight` cyjan; `EssenceGenerator` sam NIE ruszany (atrybuty
+  `LastTickAmount`/`LastTickSeq` czytane przez `EssenceTickService`/`EssenceTickController`
+  zostaja nietkniete).
+- `PlotBench` — mala lawka (Marble siedzisko + koralowe oparcie) z boku, poza sciezka
+  wejscie->karty.
+- `BackWallDetail` — zloty cokol wzdluz podstawy `BackWall`, 2 pilastry Slate na koncach (echo
+  `EntranceArch`), pasek `WallGlow` (zloty Neon) nad rzedem kart + 2 `PointLight` dla podswietlenia.
+- **Docisniecie glow kart:** wszystkie 10 `RarityGlow` (jeden na slot) przemalowane z szarego na
+  cieply zloto-bialy (byly czysto dekoracyjne, nieużywane przez `PlotService.renderSlot` — ten
+  ustawia tylko `RarityBorder.Color`, wiec bezpieczne do przemalowania raz na sztywno).
+- Struktura nazw slotow/kart (`SlotN/CardFrame/Frame/RarityBorder`) i `EssenceGenerator`/
+  `Nameplate` **NIE ruszane** — zero ryzyka dla `PlotService`/`PlotController`/
+  `EssenceTickController`, ktore odnajduja te instancje po nazwie.
+
+**3. Regeneracja 8 showcase'ow.** Kazdy stary `ShowcasePlot` skasowany i zastapiony swiezym
+klonem juz spolerowanego + poprawionego orientacyjnie `PlotTemplate`, `PivotTo`'wany na
+skorygowany `AnchorMarker.CFrame` — jeden krok gwarantuje spojnosc (zero recznego babrania w 8
+kopiach z osobna).
+
+**4. Most Studio.** Zywy przez caly przebieg, bez potrzeby wznawiania.
+
+**Zrzut ekranu:** kamera edytora ponownie nie reagowala na zadne zmiany `cameraPosition`/
+`cameraLookAt`/`fov` (3 rozne proby, identyczny kadr za kazdym razem — potwierdzone ograniczenie
+narzedzia w tej sesji, nie da sie zlapac bliskiego kadru "rampa->wejscie->karty" na jednym
+plocie). Uzyskany szeroki kadr i tak POTWIERDZA fix wizualnie: rzedy kart widoczne teraz na
+DALEKIEJ (zewnetrznej) krawedzi kazdej wyspy zamiast przy wjezdzie z rampy, plus widoczna
+szachownica podlogi/zlota ramka/cyjanowa obwodka/narozne klastry na wszystkich 8 plotach.
+
+**Andreas: Ctrl+S w Studio.** Caly ten przebieg (obrot 8 `AnchorMarker`, polish
+`ServerStorage.PlotTemplate`, regeneracja 8 `ShowcasePlot`) zyje wylacznie w zywym DataModelu —
+zero zmian w `src/`, zero commita kodu, wpis w STATUS.md ponizej to caly "commit" tego przebiegu.
+Bez zapisu placu caly polish i fix orientacji znikaja przy nastepnym restarcie Studio.
+
+**Poza zakresem (kolejny przebieg):** stragan -> otwarcie sklepu paczek, portal -> wejscie do
+biegu, spawn/inne podpiecia — jak zapowiedziane, niezmienione.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
