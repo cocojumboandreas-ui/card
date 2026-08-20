@@ -1239,6 +1239,48 @@ studow na podloge Placu), material/kolor jak `LaneUp`.
 **Andreas: Ctrl+S w Studio.** 8 nowych czesci (`PlazaFill`, jedna na rampe) pod
 `Workspace.Hub.Bridges.RampN` — zero zmian w `src/`.
 
+## Audyt: "rampy rozjezdzaja sie w Play" — zero przyczyny runtime, geometria stabilna (2026-08-20, szesnasty przebieg)
+
+Andreas: "geometria wyglada OK w EDIT, ale przy PLAY/tescie sie rozjezdza" — WARUNEK #0, trzy
+konkretne hipotezy do sprawdzenia: (a) czesc odkotwiczona w runtime przez skrypt, (b) conveyor
+rusza SAME belki zamiast tylko popychac gracza, (c) leftover build-skrypt na starcie.
+
+**Metoda:** prawdziwy `solo_playtest` (nie edit), snapshot pozycji + `Anchored` wszystkich 72 czesci
+pod `Hub.Bridges` (8 ramp × 9 czesci: `LaneUp`, `LaneDown`, 3×`Rail`, 2×`Stripe`, `LaneFill`,
+`PlazaFill`) zaraz po starcie, potem po ~30s realnego czasu Play, diff pozycja-po-pozycji.
+
+**Pulapka po drodze:** pierwszy diff pokazal 24 "przesuniete" czesci (`Rail`/`Stripe` — kazda rampa
+ma PO TRZY `Rail` i PO DWIE `Stripe` o IDENTYCZNEJ nazwie). Klucz snapshotu oparty tylko o nazwe
+nadpisywal sie przy kolizji, wiec diff faktycznie porownywal RÓZNE fizyczne czesci ze soba —
+falszywy alarm, bug w metodzie pomiaru, nie w grze. Poprawka: klucz indeksowany
+(`RampN.PartName#idx`, stabilna kolejnosc `GetChildren()`), pomiar powtorzony od zera.
+
+**Wynik (72/72 czesci, indeksowany klucz):** **zero roznic pozycji, `Anchored=true` na starcie i po
+30s bez wyjatku** na wszystkich 8 rampach.
+
+**Weryfikacja trzech hipotez:**
+1. **(a) Skrypt odkotwiczajacy w runtime — WYKLUCZONE.** `grep_scripts` po calej grze (79 skryptow):
+   zero trafien na `Anchored = false`, zero odwolan do `Bridges`.
+2. **(b) Conveyor rusza belki — WYKLUCZONE.** `Workspace.Hub.ConveyorDriver` (jedyny skrypt
+   dotykajacy tagu `ConveyorLane`, ktorym oznaczone sa wlasnie `LaneUp`/`LaneDown`) mutuje
+   WYLACZNIE `HumanoidRootPart` dotykajacych graczy (`part.CFrame = part.CFrame + dir*speed*dt`,
+   filtr `part.Name == "HumanoidRootPart"`) — nigdy nie dotyka samej belki (`belt`). Kod juz pisany
+   poprawnie (surface-velocity wzorzec na graczu, nie na geometrii).
+3. **(c) Leftover build-skrypt na starcie — WYKLUCZONE.** Jedyne dwa trafienia na `PivotTo` w calej
+   grze to `FallRespawnService` (respawn POSTACI po spadnieciu z mapy) i `PlotService`
+   (ustawianie klona plotu w slocie przy przydziale) — zaden nie dotyka `Hub.Bridges`.
+
+**Wniosek:** obecna geometria ramp jest w 100% stabilna w Play, identyczna z Edit. Fraza
+"rozjezdzone deski" pokrywa sie 1:1 ze slownym opisem juz naprawionego buga z **czternastego
+przebiegu** (szczelina `LaneUp`/`LaneDown`, fix `LaneFill`) — najbardziej prawdopodobne wytlumaczenie
+to test na nieodswiezonej sesji (przed Ctrl+S / przed fresh Play po ostatnich fixach), nie nowy bug.
+Zaden z 8 ramp/72 czesci nie wykazal ruchu ani utraty `Anchored` w realnym Play.
+
+**Andreas: Ctrl+S w Studio, potem swiezy Play (zamknij i otworz playtest od nowa, nie kontynuuj
+starej sesji) — jesli rozjezdzanie nadal widoczne PO fresh save+replay, to nowy, jeszcze
+niezidentyfikowany objaw i potrzebny nowy zrzut/opis z konkretnej rampy.** Zero zmian w geometrii
+tym razem — audyt, nie fix (nic nie bylo do naprawienia w runtime).
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
