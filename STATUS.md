@@ -849,6 +849,69 @@ piatym przebiegu) — zweryfikowane wylacznie programowo + raycastami w zywym pl
 + 40 partow `Stripe`/`Rail` (8 rampy x 5 zaleznych) pod `Workspace.Hub.Bridges` — zero zmian w
 `src/`, wpis w STATUS.md ponizej to caly "commit" tego przebiegu.
 
+## HUB/Swiat — naprawa rozjazdu ramp z plotami przy uruchomieniu gry (2026-08-19, siodmy przebieg)
+
+**Zgloszenie Andreasa:** "przy uruchomieniu gry te schody i mapa sie rozjezdza, trzeba je
+przykotwiczyc miedzy baza gracza a srodkiem [placem]" — inny problem niz poprzedni (szosty)
+przebieg, ktory naprawial WYSOKOSC (przebicie przez podloge). Tu chodzilo o POZYCJE POZIOMA:
+rampy z gory nie siegaly realnie do plotow.
+
+**Diagnoza — dwie odrzucone hipotezy, jedna potwierdzona:**
+1. Hipoteza "`PlotTemplate` ma inny wewnetrzny offset `Floor` wzgledem pivota niz `ShowcasePlot`"
+   — sprawdzona bezposrednio (`GetPivot()`/`ToObjectSpace()` na obu modelach) i **odrzucona**:
+   `floorRelToPivot=(0,-1.5,0)` identyczne na obu, `bboxSize` identyczny (65,15,65).
+2. Hipoteza "`AnchorMarker.CFrame` != pivot `ShowcasePlot`" — sprawdzona na wszystkich 8 kotwicach
+   (`diffPos=0.0000`, `dotLook=1.0000` wszedzie) — **odrzucona**, statyczny plot siedzi dokladnie na
+   markerze, klon runtime (`PlotService.allocatePlot`, `clone:PivotTo(marker.CFrame)`) laduje sie
+   w identycznym miejscu co showcase — zero rozjazdu miedzy edit-mode a runtime samym w sobie.
+3. **Prawdziwa przyczyna, potwierdzona zywym pomiarem w `solo_playtest`:** koniec kazdej rampy od
+   strony plotu (`LaneUp`/`LaneDown` x8, ustawiony w czwartym przebiegu i NIE ruszany w szostym —
+   "pozycja/kierunek (promien, yaw) NIE ruszone") konczyl sie systemowo **~15.6-16.6 studa ZA
+   KROTKO** przed krawedzia plotu (dystans od konca linii do markera kotwicy ~47.6-48.6 studa
+   zamiast prawidlowych ~32 study = polowa szerokosci plotu 64x64). Zmierzone identycznie na
+   wszystkich 8 rampach (stala, systemowa rozbieznosc, nie przypadkowy szum) — rampy zostaly
+   pierwotnie zbudowane wzgledem promienia kotwic sprzed jakiegos wczesniejszego przesuniecia
+   plotow dalej od placu, i nigdy nie zostaly za tym przesunieciem poprawione. Dokladnie to
+   Andreas opisal jako "rozjezdza sie miedzy baza gracza a srodkiem".
+
+**Fix:** dla kazdej z 16 lini (`LaneUp`+`LaneDown` x8) przeliczony na nowo koniec od strony plotu —
+kierunek promieniowy do placu (`dirToPlaza`, jednostkowy wektor od kotwicy do (0,_,0), zweryfikowany
+jako idealnie zgodny z lokalna osia Z kazdej kotwicy na wszystkich 8: `localDir≈(0,0,1)` wszedzie)
+oraz skladowa boczna (offset prostopadly, `rightVecXZ`) zachowana z oryginalu (zeby nie zaburzyc
+rozstawu LaneUp/LaneDown wzgledem siebie) — nowy cel = `marker.Position + dirToPlaza*31.5 +
+rightVecXZ*lateral` (31.5 = polowa 64-studowego plotu minus 0.5 studa zagniezdzenia). Koniec od
+strony placu pozostawiony bez zmian pozycji poziomej (byl prawidlowy). Wysokosc obu koncow
+przeliczona tym samym mechanizmem co szosty przebieg (gorna powierzchnia, nie srodek bryly),
+tym razem iteracyjnie skorygowana takze o wklad grubosci/szerokosci bryly pod kątem (`extra =
+0.5*Size.Y*|upVec.Y|`) — bez tej poprawki pierwsza proba fixu ponownie dala przebicie ~0.47 studa
+(ten sam blad co szosty przebieg, tym razem z innego zrodla: sam punkt koncowy linii byl
+prawidlowy, ale bryla ma grubosc i przy przechyleniu jej naroznik wystaje ponad punkt srodkowy —
+poprawione przez 6 iteracji zbiegajacych natychmiast). `Stripe`x2 i `Rail`x3 per rampa przeliczone
+wzgledem WLASNEGO wlasciciela (jak w szostym przebiegu) — w tym rowniez `Size.Z` wydluzony do nowej
+dlugosci linii (rampy sa teraz dluzsze o ~15-16 studow, bo faktycznie siegaja do plotu).
+
+**Zweryfikowane na zywo w `solo_playtest`:**
+- **Dosiegniecie plotu:** `gapToMarker=31.65` na wszystkich 16 liniach (cel 31.5-32, w granicach
+  plotu) — w porownaniu do `~47.6-48.6` przed fixem.
+- **Brak przebicia:** `maxY=21.470` vs `floorTop=21.50` (margines 0.03) na wszystkich 16 liniach —
+  identyczny standard jak szosty przebieg.
+- **Realny plot gracza (nie showcase):** gracz w playtescie wyladowal na kotwicy 8
+  (`Plot_10945102665`) — bezposredni pomiar koniec-rampy-do-krawedzi-podlogi-plotu:
+  `horizGap=0.00` (koniec rampy miesci sie w obrysie podlogi plotu, nie na zewnatrz),
+  `vertDiff=-0.54` (bezpiecznie pod gorna powierzchnia, brak przebicia) — potwierdzone na
+  PRAWDZIWYM przydzielonym plocie, nie na statycznym showcase.
+- **Ciaglosc:** 21-punktowy raycast po srodku kazdej z 16 lini — **0/16 lini z trafieniami
+  pustymi**.
+- **`ConveyorLane` tag:** 16/16 nienaruszonych (fix zmienial `CFrame`/`Size`, nie atrybuty/tagi).
+
+**Zrzut ekranu: nadal niedostepny** (to samo ograniczenie narzedzia co w piatym i szostym
+przebiegu) — zweryfikowane wylacznie programowo + pomiarami w zywym playteście na prawdziwym
+plocie gracza.
+
+**Andreas: Ctrl+S w Studio.** Ten przebieg ponownie nadpisuje `CFrame`/`Size` tych samych 16
+partow `LaneUp`/`LaneDown` + 40 partow `Stripe`/`Rail` pod `Workspace.Hub.Bridges` (dluzsze rampy,
+siegajace teraz realnie do plotow) — zero zmian w `src/`.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
