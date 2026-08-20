@@ -1281,6 +1281,69 @@ starej sesji) — jesli rozjezdzanie nadal widoczne PO fresh save+replay, to now
 niezidentyfikowany objaw i potrzebny nowy zrzut/opis z konkretnej rampy.** Zero zmian w geometrii
 tym razem — audyt, nie fix (nic nie bylo do naprawienia w runtime).
 
+## FLATTEN hub + cleanup dekoracji — jeden poziom dna, rampy usuniete (2026-08-20, siedemnasty przebieg)
+
+Na zadanie Andreasa: caly Hub splaszczony z dwupoziomowego designu (ploty na plywajacych
+wyspach Y=22, plac/sklep/portal na Y=0) do JEDNEGO poziomu dna morskiego. Zero zmian w
+`src/` — czysto instancje w Studio (`PlotService.luau` czyta `AnchorMarker.CFrame` live przy
+starcie serwera, wiec nowa pozycja trafia automatycznie, bez zmian w kodzie).
+
+**Poziom dna:** potwierdzony raycastem, top piasku (Sand) = **Y=-14** (raycast musi startowac
+Z WEWNATRZ kolumny wody, np. Y=5, w dol — start z Y>50 trafia w gorna powierzchnie wody, nie
+w dno, znana pulapka z 8./9. przebiegu).
+
+**Wykonane:**
+1. `Hub.Bridges` (8× `RampN`, kazdy z `LaneUp/LaneDown/3xRail/2xStripe/LaneFill/PlazaFill`) —
+   **usuniety w calosci** (`:Destroy()`). Jeden poziom = brak potrzeby na pochyle rampy, to
+   wlasnie one robily "chaos krzyzujacych sie desek".
+2. Wszystkie 8 `Hub.PlotAnchors.PlotAnchorN` (+ dopasowane `Hub.Barriers.PlotBarriersN`)
+   przesuniete o **Y-36** (`PivotTo(GetPivot()+Vector3.new(0,-36,0))`, czysta translacja —
+   orientacja/ustawienie kart ZACHOWANE automatycznie, bo to translacja a nie rebuild).
+   `AnchorMarker` wyladowal dokladnie na Y=-14 (sprawdzone raycastem na wszystkich 8).
+3. `Hub.Plaza`, `Hub.Shop`, `Hub.Portal`, `Hub.Barriers.PlazaRing` przesuniete o **Y-14**.
+   `PlazaFloor` top = Y-14 (raycast), flush z dnem.
+4. `Workspace.SpawnLocation` (poza folderem `Hub.Plaza`, wiec pominiety w kroku 3) doraznie
+   znaleziony i przesuniety o -14 osobno — inaczej gracz spawnowalby sie 14+ studow nad nowym
+   dnem.
+5. **Cleanup dekoracji** (44 elementy = 28 `Hub.Decor` tuft-y + 9 `Coral Reef Pack` +
+   7 `Underwater Flora` w `Hub.UnderwaterDecor`): PRZED flattenem wszystkie 44 nachodzily na
+   plac/plot/sklep/portal (sprawdzone AABB/OBB overlap w lokalnej ramce kazdej kotwicy plotu +
+   promien placu) — bo dekor siedzial na starych wyspach (Y~22-24, brak realnej kolizji z
+   racji separacji pionowej), a po splaszczeniu ta sama pozycja XZ = realny clipping.
+   - 28 malych tuftow (Crystal/Coral/PlantTuft): przesuniete promieniowo od najblizszej strefy
+     (od srodka placu jesli byly plac-adjacent, od srodka konkretnej kotwicy plotu jesli
+     byly plot-adjacent) z zapasem poza polowa przekatnej footprintu (68*1.5+margines),
+     nastepnie osadzone na dnie raycastem (Y=5→w dol, ta sama pulapka wody co wyzej —
+     pierwsza probka z Y=60 dala falszywe Y~50-80, "floating" bug, wykryty i naprawiony).
+   - 16 duzych elementow tla (`Coral Reef Pack` 93×23, `Underwater Flora` 105×71): przesuniete
+     promieniowo OD SRODKA MAPY poza zewnetrzny promien pierscienia plotow (promien~280,
+     rozrzut), jako dalekie tlo poza cala strefa gry — rozmiar (93-105 studow) i pierwotny
+     gesty rozstaw sprawialy ze pojedynczy plot/plac trafial w 2-3 elementy naraz, promieniowy
+     wypych to jedyny deterministyczny sposob rozwiazania bez kolizji miedzy nimi.
+   - **Wynik: 0/44 nachodzenie** po weryfikacji (ten sam AABB/OBB check co wykryl 44/44 przed
+     fixem).
+
+**Weryfikacja (2 niezalezne metody):**
+1. Raycast sweep 184 probek (23 punkty × 8 sciezek plac→plot, promien 55-165) — **0 dziur**.
+2. Realny playtest (`solo_playtest` play mode): gracz automatycznie trafil na `Plot_<userId>`
+   na Y=-14 (`PlotService` poprawnie odczytal nowa pozycje kotwicy przy starcie serwera),
+   scripted `Humanoid:MoveTo` plac→wlasny plot→plac — caly czas na ziemi (HRP Y≈-10/-11,
+   spojne z stanem na dnie), zero wpadniecia w pustke.
+
+**Zrzuty (zolnierz-widok + gora):** zolnierz-widok pokazuje gracza na plaskim placu ze
+straganem, kartami plotow po bokach na tym samym poziomie, rybami/koralami w tle bez
+clippingu. Aerial (kamera Scriptable, z zewnatrz terenu patrzac do srodka, bo prosto-w-dol z
+duzej wysokosci = nad powierzchnia wody, silna mgla/tinting robi scene nieczytelna — znana
+pulapka: gora wody ~Y=50, wiec top-down w pelni podwodny ogranicza wysokosc kamery do <50)
+pokazuje fontanne+plac+dwa mury barierowe plotow na jednym plaskim poziomie, dekor bez
+nachodzenia.
+
+**Poboczny fix wykonany przy okazji:** `Workspace.SpawnLocation` (krok 4 wyzej) — nie byl
+czescia zadania, ale bez tego gracz spawnowalby sie w powietrzu nad nowym dnem.
+
+**Andreas: Ctrl+S w Studio — caly ten przebieg to instancje w zywym DataModelu, nic nie jest
+jeszcze zapisane na dysku.**
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
