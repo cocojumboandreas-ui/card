@@ -1393,6 +1393,33 @@ widocznych artefaktow po usunietych barierach.
 podniesienie 8 PlotAnchorN, nowy folder Walkways, przepisany `ConveyorDriver.Source`), nic nie
 jest zapisane na dysku.**
 
+## Widoczne sciezki: czarny pas + strzalka-tasma (2026-08-20, dziewietnasty przebieg)
+
+Poprzedni przebieg zrobil sciezki funkcjonalnie (pchaly gracza), ale wizualnie byly niewidoczne
+(kolor Sandstone zlewal sie z piaskiem). Andreas: "rampy sa niewidoczne, zrob... po prostu
+czarny pasek... nalozymy efekt jak w ruchomych schodach ze bedzie strzalka i tasma".
+
+1. **Przebudowa `Lane*_Walk`** — `Material=Asphalt`, `Color=(18,18,18)` (czarny), zamiast
+   Sandstone. Orientacja zmieniona tak, ze lokalna os X kazdego pasa = kierunek jazdy (bylo Z) —
+   potrzebne pod teksture (patrz niznej).
+2. **Strzalka:** `Texture` (nie `Decal` — potrzebne kafelkowanie) na `Face=Top`, obraz
+   `rbxassetid://99477770602129` (czarny chevron `>` na zoltym tle, publiczny Creator Store asset,
+   znaleziony przez `search_assets`), `StudsPerTileU=12`. Kolory wychodza przygaszone/fioletowe na
+   zrzutach — to znany efekt podwodnego tintu sceny (patrz siedemnasty przebieg), nie blad tekstury;
+   ksztalt chevronu czytelny.
+3. **Animacja "tasmy":** nowy `LocalScript` `TapeAnimator` — najpierw wstawiony pod
+   `Workspace.Hub.Walkways` (BLAD: LocalScript pod Workspace sie NIE uruchamia, to nie jest
+   prawidlowy kontener klienta — pulapka do zapamietania), przeniesiony do
+   `StarterPlayer.StarterPlayerScripts` (dziala). Animuje `Texture.OffsetStudsU -= 10*dt` co
+   `RenderStepped` dla kazdej czesci z tagiem `ConveyorVisual` (osobny tag od `ConveyorLane` —
+   ten drugi zostaje na niewidzialnym sensorze i steruje faktycznym ruchem gracza, nie wizualem).
+   Zweryfikowane: offset realnie sie zmienia w czasie (~10 studow/s, z zawijaniem modulo 12).
+4. Mechanika popychania (`ConveyorDriver` z poprzedniego przebiegu) nietknieta, zweryfikowana
+   ponownie po przebudowie geometrii — nadal ~22 study/s.
+
+**Andreas: Ctrl+S w Studio — kolejny przebieg zywego DataModelu (przebudowany folder Walkways,
+nowy LocalScript `StarterPlayerScripts.TapeAnimator`), nic nie zapisane na dysku.**
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
