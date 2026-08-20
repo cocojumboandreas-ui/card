@@ -980,6 +980,69 @@ zbudowanego punktu huba (`PlazaTrim`, Y=-10) — zero ryzyka przebicia przez map
 **Andreas: Ctrl+S w Studio.** Ten przebieg dodaje `Workspace.Hub.UnderwaterDecor` (3 Modele +
 5 klonow, wszystkie bez skryptow) — zero zmian w `src/`.
 
+## HUB/Swiat — zmiana koncepcji: podwodne krolestwo, cala mapa zatopiona (2026-08-20, dziesiaty przebieg)
+
+Andreas zmienil koncepcje: zamiast malej kaluzy wody 40 studow pod mapa (osmy przebieg), cala
+mapa Huba ma stac NA DNIE i byc CALKOWICIE zatopiona — gracz chodzi normalnie (bez plywania),
+ryby plywaja swobodnie w wodzie dookola, korale wszedzie.
+
+**1. Pomiar realnej mapy.** Pelny bbox `Workspace.Hub` z pominieciem `SkyDecor` (chmury na
+Y do 423 — nieistotne dekoracje nieba) dal footprint X/Z ±204, Y od -10 (najnizszy budowany
+punkt) do 34.5 (belka bramy wjazdowej najwyzszego placu). Uklad Huba to NIE jeden plaski teren —
+to 9 unoszacych sie "wysp" (Plaza + 8 platform dzialek, kazda ~92-104 study srednicy, Y~15-21.5)
+polaczonych 8 rampami; miedzy nimi jest calkowita pustka (potwierdzone raycastem — 0 trafien we
+wszystkich 8 kierunkach miedzy dzialkami). Stara "kaluza" z osmego przebiegu juz nie istniala w
+Terrainie (0 voxeli Water w calym obszarze) — najwyrazniej sesja Studio nie zostala zapisana po
+tamtym przebiegu.
+
+**2. Zalanie calej mapy.** Jeden `Terrain:FillBlock` Water, srodek (0,17.5,0), rozmiar
+(460,65,460) — pokrywa X/Z ±230 (bufor poza budowana mapa) i Y od -15 do 50 (5 studow ponizej
+najnizszego punktu, 15.5 studa ponad najwyzszym). Zweryfikowane `ReadVoxels`: 228752/228752
+voxeli w probce = Water, zero przerw.
+
+**3. Prawdziwe dno morskie.** Wyspy "unosily sie" w pustce bez dna pod spodem — dobudowany drugi
+`FillBlock` material Sand, srodek (0,-17,0), rozmiar (460,6,460) (Y -20..-14, zachodzi na dno
+wody dla ciaglosci). Daje wizualne dno pod calym obszarem, ~35 studow ponizej wysp — zero ryzyka
+kolizji z budowla.
+
+**4. Chodzenie normalnie mimo zanurzenia.** Nowy `LocalScript` `StarterPlayer.StarterCharacterScripts.NoSwim`:
+`humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)`. Dziala PO STRONIE KLIENTA
+(stan Humanoid do ruchu jest client-authoritative dla wlasnej postaci) — zweryfikowane w
+playteście: `target="client-1"` pokazuje `swimEnabled=false`, `state=Running`, mimo ze gracz stoi
+w voxelu materialu Water. Zapytanie tego samego przez `target="server"` nadal pokazuje
+`swimEnabled=true` — to oczekiwana asymetria (server nie dostaje wywolania), NIE blad; liczy sie
+stan klienta, bo on steruje ruchem wlasnej postaci.
+
+**5. Korale i rosliny "wszedzie".** Osiem klastrow z dziewiatego przebiegu bylo zawieszonych w
+pustce 40 studow pod mapa (stary koncept) — przebudowane od zera: 6x Coral Reef Pack + 5x
+Underwater Flora rozrzucone po calym nowym dnie piaskowym (`Workspace.Hub.UnderwaterDecor.Coral`
+/ `.Flora`), promien 30-200 studow od srodka, losowa rotacja, piwoty osadzone na powierzchni dna
+(Y=-14 + polowa wysokosci modelu). Zweryfikowane: wszystkie top < 16, wyspy zaczynaja sie na
+Y~21.5 — 5+ studow luzu, zero przebicia.
+
+**6. Ryby plywaja.** `Workspace.Hub.UnderwaterDecor.Fish` (4 klastry Saltwater fish pack,
+rozrzucone w otwartej wodzie miedzy dnem a wyspami, Y 10-35) + nowy `Script` `FishSwim`: kazda
+pojedyncza ryba w paczce (~35 MeshPartow na klaster — Cod, Tuna, Barracuda, Octopus, itd., NIE
+zespawnowane w jeden model) dostaje wlasna losowa orbite (promien 6-20 studow, faza, predkosc) i
+pionowe bujanie przez `RunService.Heartbeat`, orientacja `CFrame.lookAt` w kierunku ruchu. Wszystkie
+czesci ustawione `Anchored=true` (juz byly), `CanCollide=false` (byly true — zmienione, zeby
+dekoracyjne ryby nie blokowaly graczy). Zweryfikowane w playteście: ryba (Boxfish) przesunela sie
+o 11.07 studa w 2 sekundy — ruch dziala.
+
+**Uwaga (nie naprawiane, poza zakresem):** w trakcie playtestu wystapil powtarzajacy sie,
+niezwiazany z tym przebiegiem blad `EssenceTickController:57: attempt to index nil with 'new'
+(function spawnSparkle)` co ~30s — to preexisting bug w `src/`, nie w tym, co dodano tutaj.
+Zgloszone Andreasowi, do ewentualnej osobnej naprawy.
+
+**Weryfikacja live (playtest, po restarcie zeby zobaczyc nowy stan edit-mode):** gracz w voxelu
+Water (`ReadVoxels` na jego pozycji = `Enum.Material.Water`), `state=Running` (nie `Swimming`),
+ryby w ruchu, zero nowych bledow od `NoSwim`/`FishSwim`.
+
+**Andreas: Ctrl+S w Studio.** Ten przebieg zmienia Terrain (2x duzy `FillBlock` — Water + Sand),
+przebudowuje `Workspace.Hub.UnderwaterDecor` (nowa struktura Coral/Flora/Fish + skrypt FishSwim),
+dodaje `StarterPlayer.StarterCharacterScripts.NoSwim` (jedyna zmiana poza samym Hubem/Terrainem,
+ale nadal build-only przez MCP — zero zmian w `src/`).
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
