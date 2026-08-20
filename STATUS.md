@@ -1420,6 +1420,38 @@ czarny pasek... nalozymy efekt jak w ruchomych schodach ze bedzie strzalka i tas
 **Andreas: Ctrl+S w Studio — kolejny przebieg zywego DataModelu (przebudowany folder Walkways,
 nowy LocalScript `StarterPlayerScripts.TapeAnimator`), nic nie zapisane na dysku.**
 
+## Babelki podwodne z postaci + burst na skoku (2026-08-20, dwudziesty przebieg)
+
+Andreas: "mozesz dorobic babelki zeby wylatywaly od postaci i podczas skakania zeby to bylo
+widac ze to jest woda?" — czytelny sygnal "jestesmy pod woda" bezposrednio na postaci gracza
+(dotychczas tylko otoczenie/woda-nad-mapa to sprzedawaly, patrz dziesiaty przebieg).
+
+1. **Nowy kontroler** `Controllers/UnderwaterBubblesController.luau`, ten sam wzorzec
+   Init/Start + `ServiceRegistry` co reszta (`init.client.luau` ORDER, po
+   `EssenceTickController`, niezalezny od HUD-u). Dopisany do `src/` (git) ORAZ recznie wepchniety
+   do `Bootstrap`/`Bootstrap.Controllers` w zywym DataModelu (ten sam manual-sync jak zawsze w
+   tym projekcie — brak Rojo auto-sync).
+2. **Asset:** `rbxassetid://117929489069196` ("Bubble" Decal z Creator Store — czysta biala kula,
+   zweryfikowana przez `get_asset_thumbnail` przed uzyciem), jako `ParticleEmitter.Texture`
+   (ten sam trik co strzalka w devietnastym przebiegu — Texture ID Decala dziala bezposrednio).
+3. **Dwa ParticleEmittery na jednym `Attachment`** (przypiety do `HumanoidRootPart`, offset
+   Y=-2 czyli przy stopach), tworzone w `CharacterAdded` (bo HRP i Attachment gina z martwym
+   modelem przy respawnie):
+   - **ambient** — `Rate=6`, wolny dryf w gore (`Acceleration=(0,4,0)`, `Speed=2-3.5`), male
+     przezroczyste banki caly czas — stale "jestesmy pod woda" bez skakania.
+   - **burst** — `Rate=0` (tylko reczny `:Emit()`), spiety na `Humanoid.StateChanged ->
+     Enum.HumanoidStateType.Jumping` -> `burst:Emit(18)`, szybszy/wiekszy niz ambient
+     (`Speed=6-10`, `SpreadAngle=50`) — "wzburzenie wody" przy odbiciu.
+4. **Weryfikacja (playtest, `eval_client_runtime`):** oba ParticleEmiter na
+   `HumanoidRootPart.Attachment` istnieja z poprawnym `Rate`/`Enabled=true`; wymuszone
+   `Humanoid.Jump=true` potwierdzilo realne przejscie stanu w `Enum.HumanoidStateType.Jumping`
+   (to samo zdarzenie, na ktore nasluchuje burst) — mechanika jumpa i sciezka triggera dziala.
+   Zrzut ekranu zasloniety ekranem startowym gry (osobny UI, nie ten feature) — nie przeszkadza
+   weryfikacji stanu.
+
+**Andreas: Ctrl+S w Studio — nowy ModuleScript `Bootstrap.Controllers.UnderwaterBubblesController`
++ zmieniony `Bootstrap.Source` (ORDER), nic nie zapisane na dysku poza `src/`.**
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
