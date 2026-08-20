@@ -1089,6 +1089,54 @@ znalezionych obcych skryptow gdziekolwiek w DataModelu.
 `set_script_source`. Zero zmian w Terrain/Workspace poza tym, co juz bylo z poprzedniego
 przebiegu.
 
+## Podwodne krolestwo — przebudowa dekoracji (2026-08-20, dwunasty przebieg)
+
+Andreas: usunac to co bylo z poprzedniego przebiegu (rafy/ryby stloczone w kilku punktach) i
+zrobic od nowa tak, zeby ryby swobodnie plywaly po CALYM akwenie, a rafy/flora byly rozrzucone
+losowo po calym dnie i wygladaly na zespolone (naturalne skupiska), nie na rowno rozstawiona
+siatke.
+
+**1. Odkrycie:** kazdy istniejacy klon "Coral Reef Pack" / "Underwater Flora" to juz sam w sobie
+GOTOWY klaster wielu elementow (bbox ~93x13x23 / ~105x30x71 studow) — nie pojedyncza korala.
+Klonowanie kilku takich paczek w jeden punkt dawaloby absurdalny nadmiar nakladajacej sie
+geometrii. Podobnie "Saltwater fish pack" to NIE jedna rybka a cala paczka **35 osobnych
+mesh-rybek** (Cod, Barracuda, Grouper, Tuna, Octopus, itd.) animowanych osobno w `FishSwim` —
+4 paczki z poprzedniego przebiegu = juz 140 rybek, tylko ze wszystkie orbitowaly ciasno (promien
+6-20) wokol raptem 4 stalych punktow, stad wrazenie "kilku klebowisk" zamiast pelnego akwenu.
+
+**2. Bezpieczna strefa pionowa ustalona bez potrzeby wykluczania stref XZ wokol wysp:** pilary
+dekoracyjne 8 wysp-platform siedza na Y~24.5-27.5, podloga wysp ~Y21.5 — cala dekoracja
+podwodna (rafy/flora/ryby) trzymana ponizej Y16 nigdy w nie nie wchodzi, wiec nie trzeba
+wycinac osobnych stref wokol kazdej z 8 wysp. Jedyny realny konflikt: `Plaza.PlazaTrim`
+(dekoracyjny pierscien cylindra, promien ~52, Y~-9±1) pod centralna wyspa — wykluczona jedna
+wspolna strefa promien<58 od (0,0) dla calej dekoracji.
+
+**3. Rafy/flora przebudowane:** stary `Coral`/`Flora` wyczyszczony, 9 klonow Coral + 7 klonow
+Flora (16 lacznie, w gore z 6+5=11) rozmieszczonych przez rejection-sampling w pierscieniu
+promien 58-215 od centrum (caly footprint akwenu ±230 z marginesem od sciany), min. odstep 70
+studow miedzy punktami startowymi (nie miedzy krawedziami paczek — stad czasem dwie paczki
+naturalnie blisko siebie = wyglada na zespolony klaster, czasem daleko = wyglada na rozrzucone
+po calym dnie). Kazdy klon posadowiony na szczycie piaskowego dna (Y-14) + losowa rotacja Y.
+
+**4. `FishSwim` przepisany od zera:** zamiast `home = part.Position` (pozycja rybki w oryginalnej
+paczce, stad ciasne klebowisko), kazda z 140 rybek dostaje WLASNY losowy punkt-dom rozrzucony po
+calym akwenie (promien 58-210 od centrum, Y od -8 do 16), z wiekszym promieniem orbity (12-30
+zamiast 6-20). Efekt: paczki "eksploduja" na 140 niezaleznie plywajacych rybek pokrywajacych caly
+zbiornik, nie 4 gestych roje.
+
+**Weryfikacja live (restart playtestu):** `get_runtime_logs` — zero bledow (w tym zero
+`EssenceTickController`/`FishSwim`). Bezposredni odczyt pozycji serwerowych: 140 rybek,
+`X:[-222.9, 183.5]`, `Z:[-217.5, 220.0]`, `Y:[-8.8, 18.5]` — realnie pokrywaja caly promien
+akwenu (~230), nie tylko 4 stare punkty. 9 Coral + 7 Flora rozrzucone po wszystkich kwadrantach
+(przyklad: `-166,-60` / `133,114` / `0,70` / `-34,151` / `72,191`+`40,188` blisko siebie jako
+naturalna para). Zrzut ekranu zablokowany przez ten sam preexisting "ROLL A RUNE" ekran startowy
+co poprzednio (klik symulowany na PLAY nie dziala w tym kliencie) — jak w poprzednim przebiegu,
+poza zakresem, wynik zweryfikowany przez bezposrednie odczyty DataModelu zamiast wizualnie.
+
+**Andreas: Ctrl+S w Studio.** Ten przebieg to czysty build w Studio (przebudowa
+`Workspace.Hub.UnderwaterDecor.Coral/Flora/Fish` + przepisany `FishSwim` Script) — zero zmian w
+`src/`.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
