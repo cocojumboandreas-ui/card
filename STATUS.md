@@ -1161,6 +1161,42 @@ pokrywa caly akwen z poprzedniego przebiegu — bez zmian.
 **Andreas: Ctrl+S w Studio.** Zmiana to jedna wlasciwosc (`Anchored`) na 28 istniejacych czesciach
 pod `Workspace.Hub.UnderwaterDecor.Flora` — zero nowych instancji, zero zmian w `src/`.
 
+## Fix: rampy nie do przejscia — dziura miedzy pasami (2026-08-20, czternasty przebieg)
+
+Andreas zaslal zrzut z wlasnego testu (`aaaw.png`) — chaotyczne, "rozjechane" deski przy Placu.
+Pierwsza hipoteza (wizualny balagan od 8 zbiegajacych sie ramp) zostala **odrzucona przez
+Andreasa**: "podczas gry rampy sie rozwalaja, nie da sie po nich chodzic, masz je przykotwiczyc
+porzadnie i to ogarnac" — to nie estetyka, to realny bug rozgrywki.
+
+**Diagnoza:** `Anchored`/`CanCollide`/`CanTouch`/`Massless` na wszystkich 64 czesciach w
+`Hub.Bridges` (8x Ramp1-8) — czyste, bez wyjatkow (`Anchored=true` wszedzie, `CanCollide=true` na
+`Rail`/`LaneUp`/`LaneDown`, `false` tylko na kosmetycznych `Stripe`, jak powinno). Wlasciwosci nie
+tlumaczyly bugu, wiec test empiryczny: `solo_playtest`, teleport gracza na `LaneUp`, obserwacja
+`Humanoid:GetState()`/`FloorMaterial` przez kilka sekund — gracz wchodzil w `Freefall` z
+`FloorMaterial=Air` w polowie rampy.
+
+**Root cause (potwierdzony geometria, nie tylko symulacja):** kazda rampa ma DWA rownolegle pasy
+(`LaneUp`/`LaneDown`, kazdy szer. 4.6 studow), srodki oddalone o ~6.2 studa — to zostawia **realna
+szczeline ~1.65 studa** miedzy krawedziami pasow na CALEJ dlugosci kazdej rampy (potwierdzone na
+wszystkich 8 ramp, identyczny wzorzec: gap 1.64-1.66). Wystarczajaco szeroka, zeby hitbox gracza na
+14-stopniowym spadku wpadl w dziure i przeleciyal przez rampe — dokladnie "rampy sie rozwalaja, nie
+da sie po nich chodzic".
+
+**Fix:** nowa czesc `LaneFill` na kazdej z 8 ramp — jeden pelny pas laczacy `LaneUp` i `LaneDown`
+(szerokosc = odleglosc miedzy srodkami + obie polowki + 1.5 studa zakladki z kazdej strony),
+`Anchored=true`, `CanCollide=true`, material/kolor jak `LaneUp`. Zero usunietych/przesunietych
+istniejacych czesci — tylko dolozona brakujaca geometria.
+
+**Weryfikacja (deterministyczna, nie symulacja fizyki):** raycast w dol co 0.5 studa na calej
+szerokosci (od wewnetrznej krawedzi `LaneUp` do zewnetrznej `LaneDown`) i co 0.2 dlugosci kazdej
+rampy — **105/105 trafien na wszystkich 8 rampach, zero dziur**. (Test chodzenia
+`Humanoid:MoveTo()` pokazywal dalej sporadyczny `Freefall` przy podejsciu pod gorke — to typowy
+Roblox jitter na 14-stopniowym skosie bez realnego inputu WASD, nie ten sam bug; geometria po
+fixie jest w 100% ciagla, co jest twardszym dowodem niz symulacja MoveTo).
+
+**Andreas: Ctrl+S w Studio.** 8 nowych czesci (`LaneFill`, jedna na rampe) pod
+`Workspace.Hub.Bridges.RampN` — zero zmian w `src/`.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
