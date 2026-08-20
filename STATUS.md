@@ -912,6 +912,40 @@ plocie gracza.
 partow `LaneUp`/`LaneDown` + 40 partow `Stripe`/`Rail` pod `Workspace.Hub.Bridges` (dluzsze rampy,
 siegajace teraz realnie do plotow) — zero zmian w `src/`.
 
+## HUB/Swiat — woda pod mapa z wgranego "Realistic Water" (2026-08-20, osmy przebieg)
+
+**Zgloszenie Andreasa:** "dodalem mape realistic water z woda, sprawdz skrypty tej mapy i ta wode
+daj pod nasza mape zeby bylo ladniej".
+
+**Co to bylo:** `Workspace["Water Block"]` — pojedynczy Part 2048x4.36x2048 z `Script` w srodku.
+Skrypt to jednorazowy "bake": `Terrain:FillBlock(script.Parent.CFrame, script.Parent.Size,
+Enum.Material.Water)` po czym `wait(1)` i `script.Parent:remove()` — typowy wzorzec z free-modeli:
+ma wypalic prawdziwy Terrain-water i sam sie skasowac. NIE byl to jeszcze odpalony (Part+Script
+nienaruszone) — siedzial przy tym w zlym miejscu: `Position=(53.47, 36.68, 0.5)`, czyli **nad/w
+srodku** naszej mapy (plot-topy siegaja Y~22), nie pod nia, i przesuniety od srodka placu.
+
+**Fix:** zmierzony najnizszy punkt calego `Workspace.Hub` (wszystkie descendants-BaseParts,
+rotation-aware) = `Y=-10` (`Plaza.PlazaTrim`). Blok wody przesuniety na `Position=(0, -52.18, 0)`
+— wysrodkowany pod placem (X=0,Z=0, zgodnie ze srodkiem `PlazaFloor`), gorna powierzchnia wody na
+`Y=-50`, czyli 40 studow ponizej najnizszego punktu mapy — bezpieczny odstep, zero przeciec, a
+zarazem blisko dosc, zeby bylo widac wode przy zejrzeniu przez krawedz. Odpalony `FillBlock`
+bezposrednio w edit-mode (ten sam mechanizm co reszta static-hub geometrii w tym projekcie —
+trwala zmiana w placu, nie runtime-owy skrypt), po czym Part+Script skasowane recznie (dokladnie
+to, co skrypt zrobilby sam przy pierwszym Play — zrobione raz, na trwale, zamiast zostawiac
+autostartujacy sie skrypt pod `Workspace`).
+
+**Zweryfikowane:** `Terrain:ReadVoxels` na regionie pod placem (`Y=-55..-48`) zwrocil **72/72
+voxeli Water** — bake sie powiodl. (Wstepny test przez `Workspace:Raycast` dal falszywy negatyw —
+raycast bridge w Studio niewiarygodnie wykrywa Terrain-water; `ReadVoxels` jest tu miarodajne.)
+Bezpieczny margines wzgledem plaszczyzny "spadek/respawn" (`FallRespawnService`, kill-plane
+`Y=-120` z trzeciego przebiegu) — dno wody (`Y=-54.36`) siedzi wysoko ponad tym planem, wiec
+spadajacy gracz najpierw wizualnie "wpada" do wody, dopiero potem trafia na faktyczny respawn —
+efekt uboczny, nie problem.
+
+**Andreas: Ctrl+S w Studio.** Ten przebieg dodaje trwaly region Terrain-water pod placem (poprzez
+`FillBlock`, nie Part) i usuwa `Workspace["Water Block"]` (Part+Script+6 Texture) — zero zmian
+w `src/`.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
