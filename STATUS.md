@@ -946,6 +946,40 @@ efekt uboczny, nie problem.
 `FillBlock`, nie Part) i usuwa `Workspace["Water Block"]` (Part+Script+6 Texture) — zero zmian
 w `src/`.
 
+## HUB/Swiat — podwodny dekor pod woda z Creator Store (2026-08-20, dziewiaty przebieg)
+
+**Zgloszenie Andreasa:** "poszukaj mapy pasujacej do naszej w sklepie tworcow za darmo" —
+doprecyzowane w AskUserQuestion na: dekor podwodny pod nowa wode (osmy przebieg).
+
+**Znalezione i wstawione (wszystkie darmowe, `search_assets`/`get_asset_details`/
+`get_asset_thumbnail` przed wyborem, zatwierdzone przez Andreasa):**
+- **Coral Reef Pack** (id 885395978, tworca Almighty_Pigeon, 90% pozytywnych, 2017) — 5 meshy
+  koralowca, bez skryptow.
+- **Underwater Flora** (id 10910253545, tworca alonzo12345, 100% pozytywnych, 2022) — 7 meshy
+  (skala, wodorosty, koral, anemon, gabka), bez skryptow.
+- **Saltwater fish pack** (id 10851288693, tworca RavenOctoberALT, 94% pozytywnych, 2022) — ~34
+  meshy ryb; mial 4 skrypty (prawdopodobnie animacja plywania) — `insert_asset` usunal je
+  automatycznie w ramach polityki bezpieczenstwa (kazdy `LuaSourceContainer` z assetu
+  third-party jest kasowany przed sparentowaniem, bez wzgledu na tresc). **Ryby sa wiec
+  statyczne, nie plywaja** — do ewentualnego dodania wlasnego prostego skryptu ruchu pozniej,
+  jesli Andreas bedzie chcial.
+
+**Wymagane od Andreasa w trakcie:** insercja pierwotnie zablokowana ("User is not authorized to
+access Asset") — trzeba bylo recznie wlaczyc **Game Settings > Security > "Allow Loading Third
+Party Assets"** w Studio (nie da sie tego przelaczyc skryptem, to ustawienie placu, nie property
+Instancji). Andreas wlaczyl, insercja poszla bez dalszych problemow.
+
+**Rozmieszczenie:** `Workspace.Hub.UnderwaterDecor` (nowy folder) — 8 klastrow (3x Coral Reef
+Pack, 3x Underwater Flora, 2x Saltwater fish pack) rozrzuconych w promieniu ~50-220 studow od
+srodka placu, piwoty w okolicy powierzchni wody (Y=-46..-51, powierzchnia wody na Y=-50) — wyzsze
+klastry (Underwater Flora, wys. ~29.7) czesciowo przebijaja powierzchnie (top do Y=-34), co przy
+tak cienkiej (4.36 studa) plycie wody jest nieuniknione i wyglada jak plytki raf przebijajacy
+tafle wody, nie blad. Zweryfikowane: `maxTop=-34.2`, wciaz 24 study ponizej najnizszego
+zbudowanego punktu huba (`PlazaTrim`, Y=-10) — zero ryzyka przebicia przez mape.
+
+**Andreas: Ctrl+S w Studio.** Ten przebieg dodaje `Workspace.Hub.UnderwaterDecor` (3 Modele +
+5 klonow, wszystkie bez skryptow) — zero zmian w `src/`.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
