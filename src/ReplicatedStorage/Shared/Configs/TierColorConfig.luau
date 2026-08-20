@@ -1,6 +1,6 @@
 --!strict
 -- Shared/Configs/TierColorConfig.luau — JEDYNE źródło tier->kolor. Wyciągnięte z UIFactory.TierColors
--- (T2, pivot tycoon): serwer (PlotService, kolorowanie RarityBorder na plotach) i klient (UIFactory)
+-- (T2, pivot tycoon): serwer (PlotService, kolorowanie Frame/aury na plotach) i klient (UIFactory)
 -- muszą czytać JEDEN wspólny config, nie dwie kopie tej samej tabeli — ta sama dyscyplina co
 -- odds-bug fix (PolicyService/RollService dzielą TotemPool zamiast duplikować %).
 

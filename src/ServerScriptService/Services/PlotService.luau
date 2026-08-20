@@ -4,7 +4,7 @@
 -- Wzorzec walidacji identyczny jak DeckService.SetDeck (odrzuć w całości, jawny reason) --
 -- IsDiscovered z IndexService jest jedynym źródłem prawdy o posiadaniu, tak jak w DeckService.
 --
--- Replikacja "za darmo" (Architektura-style): CardArt.Image / RarityBorder.Color3 / atrybut
+-- Replikacja "za darmo" (Architektura-style): CardArt.Image / Frame.Color / atrybut
 -- Frame.TotemId to zwykłe property/attribute-replication Roblox na instancjach pod Workspace --
 -- inni gracze widzą wystawione karty bez osobnego eventu, klient odczytuje bieżący stan slotu
 -- (atrybut) lokalnie zamiast dobijać się remotem.
@@ -38,8 +38,6 @@ local GRID_BASE_X = -150
 local GRID_BASE_Z = 250 -- offset od SpawnLocation(0,0.5,0), zero kolizji z domyślnym Baseplate
 local PLOT_COUNT = 8 -- start N (Andreas: "start np. 6-12"), 4x2 siatka -- TYLKO fallback, patrz buildAnchorSlots
 
-local EMPTY_BORDER_COLOR = Color3.fromRGB(120, 120, 125) -- przygaszony placeholder, pusty slot
-
 -- Gracz spawnuje NA swoim plocie (nie na domyslnym SpawnLocation w Hubie) -- lokalny offset od
 -- PlotOrigin, kawalek za EntranceArch (Z=30, patrz PlotTemplate), patrzac w -Z czyli w glab plotu
 -- (identyczna orientacja co CFrame.new() -- LookVector (0,0,-1) bez dodatkowej rotacji).
@@ -59,7 +57,7 @@ local _playerPlot: { [Player]: Model } = {}
 local _playerSlot: { [Player]: PlotSlot } = {}
 
 -- T5 (odwiedziny) — wypełnia Nameplate.SurfaceGui.PlayerName żywym stanem gracza. Property
--- replication "za darmo", ten sam wzorzec co CardArt.Image/RarityBorder.Color w renderSlot.
+-- replication "za darmo", ten sam wzorzec co CardArt.Image/Frame.Color w renderSlot.
 local function renderNameplate(plotModel: Model, player: Player, likes: number)
 	local nameplate = plotModel:FindFirstChild("Nameplate")
 	local surfaceGui = nameplate and nameplate:FindFirstChild("SurfaceGui")
@@ -122,53 +120,59 @@ local function buildAnchorSlots(): { PlotSlot }
 end
 
 -- Ustawia wygląd JEDNEGO slotu na żywej instancji plotu. totemId=nil/"" -> stan pusty.
--- Aura (AuraLight/AuraMount.AuraParticles/AuraRays/RarityGlow) to nowe instancje dołożone do
--- PlotTemplate (POLISH kart, 2026-08-20) -- CardArt/RarityBorder/TotemId NIE zmienione, więc
--- PlotController/EssenceTickController dalej działają bez modyfikacji.
+-- Karta jest wolnostojąca i DWUSTRONNA (POLISH kart v2, 2026-08-20: bez złotych ramek, bez ściany
+-- za plecami) -- obraz ustawiany na obu SurfaceGui (Back=przód od strony gracza, Front=tył), aura
+-- to PointLight+ParticleEmitter jadące z kartą (dzieci Frame) + AuraBeam/AuraGroundGlow zakotwiczone
+-- w podłodze pod kartą (rodzeństwo CardFrame pod Slot{i}, NIE animują się razem z obrotem/lewitacją
+-- -- światło-kolumna i świecący okrąg mają zostać na miejscu). CardArt/TotemId NIE zmienione co do
+-- nazwy/ścieżki (poza dodatkiem SurfaceGuiFront), więc PlotController/EssenceTickController dalej
+-- działają bez modyfikacji.
 local function renderSlot(plotModel: Model, slotIndex: number, totemId: string?)
 	local slotModel = plotModel:FindFirstChild("Slot" .. slotIndex)
 	local cardFrame = slotModel and slotModel:FindFirstChild("CardFrame")
 	local frame = cardFrame and cardFrame:FindFirstChild("Frame")
-	local border = cardFrame and cardFrame:FindFirstChild("RarityBorder")
-	local glow = cardFrame and cardFrame:FindFirstChild("RarityGlow")
-	local surfaceGui = frame and frame:FindFirstChild("SurfaceGui")
-	local cardArt = surfaceGui and surfaceGui:FindFirstChild("CardArt")
+	local surfaceGuiBack = frame and frame:FindFirstChild("SurfaceGui")
+	local cardArtBack = surfaceGuiBack and surfaceGuiBack:FindFirstChild("CardArt")
+	local surfaceGuiFront = frame and frame:FindFirstChild("SurfaceGuiFront")
+	local cardArtFront = surfaceGuiFront and surfaceGuiFront:FindFirstChild("CardArt")
 	local light = frame and frame:FindFirstChild("AuraLight")
 	local mount = frame and frame:FindFirstChild("AuraMount")
 	local particles = mount and mount:FindFirstChild("AuraParticles")
 	local rays = mount and mount:FindFirstChild("AuraRays")
-	if not (frame and border and cardArt) then
+	local beamAnchor = slotModel and slotModel:FindFirstChild("AuraBeamAnchor")
+	local beam = beamAnchor and beamAnchor:FindFirstChild("AuraBeam")
+	local beamTopAtt = beamAnchor and beamAnchor:FindFirstChild("BeamTop")
+	local ground = slotModel and slotModel:FindFirstChild("AuraGroundGlow")
+	if not (frame and cardArtBack) then
 		return
 	end
 
 	-- Casty raz do lokalnych zmiennych: linia zaczynająca się od "(" po wyrażeniu kończącym się
 	-- wywołaniem funkcji (np. TierColorConfig.tierColor(...)) to w Lua "ambiguous syntax" -- parser
 	-- czyta to jako kontynuację tego samego wywołania, nie nową instrukcję.
-	local frameInst = frame :: Instance
-	local borderPart = border :: BasePart
-	local cardArtLabel = cardArt :: ImageLabel
-	local glowPart = glow :: BasePart?
+	local frameInst = frame :: BasePart
+	local cardArtBackLabel = cardArtBack :: ImageLabel
+	local cardArtFrontLabel = cardArtFront :: ImageLabel?
 	local lightInst = light :: PointLight?
 	local particlesInst = particles :: ParticleEmitter?
 	local raysInst = rays :: ParticleEmitter?
+	local beamInst = beam :: Beam?
+	local beamTopAttInst = beamTopAtt :: Attachment?
+	local groundPart = ground :: BasePart?
 
 	local totem = totemId and totemId ~= "" and TotemConfig.Totems[totemId] or nil
 	if totem then
-		cardArtLabel.Image = CardArtConfig.Images[totemId :: string] or ""
+		local image = CardArtConfig.Images[totemId :: string] or ""
+		cardArtBackLabel.Image = image
+		if cardArtFrontLabel then
+			cardArtFrontLabel.Image = image
+		end
 		local color = TierColorConfig.tierColor(totem.tier)
-		borderPart.Color = color
+		frameInst.Color = color
 		frameInst:SetAttribute("TotemId", totemId)
 
 		local aura = TierAuraConfig.get(totem.tier)
 		if aura then
-			if glowPart then
-				glowPart.Color = color
-				glowPart.Transparency = aura.glowTransparency
-				local baseSize = glowPart:GetAttribute("BaseSize")
-				if typeof(baseSize) == "Vector3" then
-					glowPart.Size = baseSize * aura.glowSizeMult
-				end
-			end
 			if lightInst then
 				lightInst.Color = color
 				lightInst.Brightness = aura.lightBrightness
@@ -188,15 +192,30 @@ local function renderSlot(plotModel: Model, slotIndex: number, totemId: string?)
 				raysInst.Color = ColorSequence.new(color)
 				raysInst.Enabled = aura.rays
 			end
+			if beamInst and beamTopAttInst then
+				beamTopAttInst.Position = Vector3.new(0, math.max(aura.beamHeight, 0.05), 0)
+				beamInst.Color = ColorSequence.new(color)
+				beamInst.Width0 = aura.beamThickness * 3
+				beamInst.Width1 = aura.beamThickness * 1.2
+				beamInst.Enabled = aura.beamHeight > 0
+			end
+			if groundPart then
+				local pos = groundPart.Position
+				local thin = 0.12
+				groundPart.Color = color
+				groundPart.Size = Vector3.new(thin, aura.groundRadius, aura.groundRadius)
+				groundPart.CFrame = CFrame.new(pos.X, thin / 2, pos.Z) * CFrame.Angles(0, 0, math.rad(90))
+				groundPart.Transparency = aura.groundTransparency
+			end
 		end
 	else
-		cardArtLabel.Image = ""
-		borderPart.Color = EMPTY_BORDER_COLOR
+		cardArtBackLabel.Image = ""
+		if cardArtFrontLabel then
+			cardArtFrontLabel.Image = ""
+		end
+		frameInst.Color = Color3.new(1, 1, 1)
 		frameInst:SetAttribute("TotemId", "")
 
-		if glowPart then
-			glowPart.Transparency = 1
-		end
 		if lightInst then
 			lightInst.Enabled = false
 		end
@@ -205,6 +224,12 @@ local function renderSlot(plotModel: Model, slotIndex: number, totemId: string?)
 		end
 		if raysInst then
 			raysInst.Enabled = false
+		end
+		if beamInst then
+			beamInst.Enabled = false
+		end
+		if groundPart then
+			groundPart.Transparency = 1
 		end
 	end
 end

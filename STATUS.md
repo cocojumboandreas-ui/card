@@ -1,7 +1,10 @@
 # STATUS — Roll a Rune
 
-Ostatnia aktualizacja: 2026-08-20, **POLISH displayow kart 3D — aury per tier** — patrz sekcja
-"POLISH displayow kart — aury per tier + luk + animacja" (2026-08-20) na koncu pliku. Wczesniej
+Ostatnia aktualizacja: 2026-08-20, **POLISH displayow kart v2 — dwustronne wolnostojace karty +
+Beam-aury** — patrz sekcja "POLISH displayow kart v2 — dwustronne karty, bez ramek/scian, Beam-aury"
+(2026-08-20) na koncu pliku. Wczesniej ten sam dzien: "POLISH displayow kart — aury per tier + luk
++ animacja" (v1, ponizej — CZESCIOWO ZASTAPIONE przez v2: RarityBorder/RarityGlow/BackWall juz nie
+istnieja). Jeszcze wczesniej
 2026-08-19, **PIVOT: start przejscia z plaskiej karcianki na 3D COLLECTION-TYCOON** — patrz sekcje
 "Pivot na tycoon — T1 szkielet plotu", "T2 przydzial plotow + wypelnianie slotow" i "T3 pasywna
 esencja online+offline" (2026-08-19) ponizej.
@@ -2541,3 +2544,60 @@ dziala bez zmiany istniejacych nazw (`PlotController`/`EssenceTickController` ni
 `AuraMount`/`AuraParticles`/`AuraRays`, `CanvasSize`, tag `CardDisplay`) i przesuniecie
 `CornerClusters` to zmiany tylko w live DataModelu; kod (`TierAuraConfig.luau`, `PlotService.luau`,
 `CardDisplayController.luau`, `init.client.luau`) jest juz w `src/` i wchodzi do gita tym commitem.
+
+## POLISH displayow kart v2 — dwustronne karty, bez ramek/scian, Beam-aury (2026-08-20)
+
+Feedback Andreasa po zobaczeniu v1 (z filmiku referencyjnego `2026-08-20 17-01-16.mp4`, pocietego
+na klatki i przejrzanego): obrazek dwustronny, karty wieksze, BEZ zlotych ramek, usunac tylnia
+sciane plotu, aury skalowane tierem — "one musza byc kartami a nie na jakis tych" (wolnostojace, nie
+zawieszone na scianie/ekranie).
+
+**`PlotTemplate` (live-DataModel-only, ServerStorage) — druga restrukturyzacja wszystkich 10
+slotow:** usuniete `BackWall`+`BackWallDetail` (Model z Baseboard/Pilastry/WallGlow) calkowicie —
+plot teraz otwarty w strone reszty Huba za karta. Usuniete `RarityBorder`+`RarityGlow` (zlota ramka
++ plaskie halo) na kazdym slocie. `Frame` powiekszony 5.4x7.2x0.4 → **6.6x8.8x0.4** (dalej dokladnie
+3:4), material `SmoothPlastic`, kolor bialy (nie tier-kolor — tier teraz niesie WYLACZNIE aura, nie
+karta). **Nowy `SurfaceGuiFront`** (Face=Front) + wlasny `ImageLabel CardArt` obok istniejacego
+`SurfaceGui`(Face=Back) — ten sam obraz na obu, karta czytelna z obu stron. Luk poszerzony:
+`ARC_RADIUS` 32→33, `ARC_HALF_SPAN_DEG` 48°→60°, `ARC_FOCAL` Y 4.6→5.2 (zeby dol wiekszej karty nie
+wchodzil w podloge) — zmieszczone w istniejacym footprint 64x64 (sprawdzone bounding-boxami
+`CornerClusters`/`CornerPillars`/`PlotFountain`/`PlotBench`/`EntranceArch`, zero kolizji, wiec NIE
+przebudowano samego footprintu plotu).
+
+**Aura v2 — z Part-cylinder na `Beam`:** pierwsza wersja `AuraBeam` (Neon Part, plaski slup, hard
+cap na gorze) wygladala jak lita zlota tyczka, nie "kolumna swiatla" — screenshot z realnej gry
+pokazal to jednoznacznie. Zamienione na **`Beam`** miedzy dwoma `Attachment` (`BeamBottom`/`BeamTop`)
+pod nowym `AuraBeamAnchor` [Part, niewidoczny, bez rotacji] — `Beam.Transparency` to gradient
+(0.15→0.55→1.0, gasnie ku gorze), `Width0`/`Width1` skaluja sie z `beamThickness` (stozek
+gruby→cienki), `FaceCamera=true`, `LightEmission=1`. `BeamTop.Position.Y` (=`aura.beamHeight`,
+0=Common do 20=Legendary) i `Width0/1` ustawiane w `PlotService.renderSlot` przy kazdym
+fill/clear. `AuraGroundGlow` (plaski swiecacy okrag, Neon Part) bez zmian strukturalnych, dalej
+skaluje `groundRadius`/`groundTransparency` per tier. `TierAuraConfig.beamTransparency` USUNIETE
+(nieuzywane po przejsciu na Beam — ksztalt gradientu jest teraz staly, tier steruje tylko
+wysokoscia/grubosci/kolorem).
+
+**`PlotService.renderSlot` zaktualizowane:** `beamPart`(BasePart) → `beamInst`(Beam) +
+`beamTopAttInst`(Attachment), `groundPart` bez zmian. Puste sloty: `beamInst.Enabled=false` zamiast
+`Transparency=1`.
+
+**Zweryfikowane DWOMA sciezkami:**
+1. QA-preview klon w Workspace + inline tabela tierow (`execute_luau`, omija znany bug stale-cache
+   `require()` w edit-mode VM) — zrzut ekranu potwierdzil: brak zlotych ramek, brak tylnej sciany,
+   kolumny swiatla realnie gasnace ku gorze (nie lite slupy), swiecace okregi pod kartami, iskry
+   (`AuraParticles`), eskalacja Common(brak beam)→Legendary(20-studowy zloty snop).
+2. **Prawdziwa sciezka serwerowa** — `solo_playtest` + `eval_server_runtime`: wymuszona discovery
+   5 totemow (po jednym na tier) na profilu gracza, `PlotService.SetPlotSlot` wywolane bezposrednio
+   dla wszystkich 10 slotow realnego plotu (nie QA-mock) — wszystkie 10 zwrocily `ok=true`. Zrzut
+   ekranu z rzeczywistej gry (kamera klienta, `PlayerGui` intro-GUI tymczasowo wylaczone zeby
+   zobaczyc scene) potwierdzil identyczny efekt na produkcyjnej sciezce: rozne karty (bee/cat/
+   rabbit/...), dramatyczne zlote snopy na koncach luku (Legendary), zero ramek/sciany.
+
+**Male porzadki przy okazji:** poprawione dwa nieaktualne komentarze wskazujace na juz
+nieistniejace `RarityBorder`/`RarityGlow` (`CardDisplayController.luau`, `TierColorConfig.luau`).
+
+**Andreas: zapisz plac w Studio (Ctrl+S)** — DRUGA runda zmian tylko w live DataModelu na
+`PlotTemplate` (usuniecie `BackWall`/`BackWallDetail`/`RarityBorder`/`RarityGlow` na 10 slotach,
+nowy `SurfaceGuiFront`, nowy `AuraBeamAnchor`+`Beam` zamiast starego `AuraBeam` Part, `Frame`
+powiekszony/przesuniety na 10 slotach) — NIE zapisane automatycznie, ta sama zasada co poprzednie
+rundy. Kod (`TierAuraConfig.luau`, `PlotService.luau`, plus dwa komentarze) jest juz w `src/` i
+wchodzi do gita tym commitem.

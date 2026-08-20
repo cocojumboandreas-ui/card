@@ -6,9 +6,11 @@
 -- Wzorzec 1:1 z ConveyorArrowsController: tag CollectionService ("CardDisplay", dołożony do
 -- CardFrame w PlotTemplate) + kilka prób WaitForChild/zbierania z odstępem (replikacja tagów to
 -- osobny kanał niż replikacja instancji -- pierwsza próba potrafi zobaczyć 0 kart mimo że
--- Workspace.Plots już istnieje). CardFrame ma PrimaryPart=Frame, więc PivotTo() rusza całą trójkę
--- (Frame/RarityBorder/RarityGlow) sztywno razem -- AuraLight/AuraMount/AuraParticles/AuraRays są
--- dziećmi Frame, więc aura jedzie z kartą za darmo, bez osobnego animowania.
+-- Workspace.Plots już istnieje). CardFrame ma PrimaryPart=Frame, więc PivotTo() rusza kartę (Frame,
+-- oba SurfaceGui) -- AuraLight/AuraMount/AuraParticles/AuraRays są dziećmi Frame, więc aura jedzie
+-- z kartą za darmo, bez osobnego animowania. AuraBeam/AuraGroundGlow (v2) są rodzeństwem CardFrame
+-- pod Slot{i}, NIE Frame, więc świadomie NIE animują się tym kontrolerem -- zostają zakotwiczone w
+-- podłodze.
 --
 -- Nowe plot-klony (Workspace.Plots.ChildAdded) są dogrywane na bieżąco -- gracze dołączają długo po
 -- Start(), a każdy ma własnych 10 slotów do podpięcia.
