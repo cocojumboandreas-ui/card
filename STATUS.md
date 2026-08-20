@@ -1197,6 +1197,48 @@ fixie jest w 100% ciagla, co jest twardszym dowodem niz symulacja MoveTo).
 **Andreas: Ctrl+S w Studio.** 8 nowych czesci (`LaneFill`, jedna na rampe) pod
 `Workspace.Hub.Bridges.RampN` — zero zmian w `src/`.
 
+## Fix: rampy nie laczyly sie z Placem — dziura po stronie placu (2026-08-20, pietnasty przebieg)
+
+Andreas: "rampy miedzy plotami graczy a centralnym placem nie laczą się / nie kotwiczą — nie da się
+przejść z plotu na plac. Underwater rebuild prawdopodobnie je rozjebał." WARUNEK #0, wymagana
+weryfikacja playtestem I raycastem na wszystkich 8 rampach, w obu kierunkach.
+
+**Diagnoza strony plotowej (zewnetrznej):** zmierzona odleglosc od `PlotAnchor` do konca rampy —
+31.65-31.66 studa na wszystkich 8 rampach, identyczna z fixem z "siodmego przebiegu" (2026-08-19).
+**Strona plotowa nigdy nie byla zepsuta** — podwodny rebuild jej nie ruszyl.
+
+**Root cause (strona placowa/wewnetrzna):** rampy koncza sie na krawedzi Placu, ale nie bylo zadnej
+czesci laczacej wewnetrzny koniec rampy (`LaneUp`/`LaneDown`/`LaneFill`) z `Plaza.PlazaFloor` —
+realna szczelina na STYKU rampa-plac, dokladnie tam gdzie gracz schodzi z rampy na plac (lub
+wchodzi z placu na rampe).
+
+**Fix:** nowa czesc `PlazaFill` na kazdej z 8 ramp, laczaca wewnetrzny koniec rampy z krawedzia
+Placu — zorientowana wedlug **faktycznego kierunku pasow rampy** (`LaneUp.CFrame.ZVector`), nie
+czystego kierunku radialnego od srodka Placu (te dwa kierunki lekko sie rozjezdzaly, co przy
+pierwszej, waskiej wersji fixu zostawialo mikroskopijna szczeline ~2×4 study w jednym rogu — zlapana
+i domknieta przez poszerzenie zakladki). Finalne wymiary: `Anchored=true`, `CanCollide=true`,
+`CanTouch=true`, szerokosc 32 study (przekracza faktyczna szerokosc chodnika miedzy barierkami
+~10.6 studa z duzym zapasem), dlugosc 26 studow (18 studow zakladki w glab rampy/`LaneFill`, 8
+studow na podloge Placu), material/kolor jak `LaneUp`.
+
+**Weryfikacja — DWIE niezalezne metody, obie PASS:**
+1. **Raycast (deterministyczny):** siatka co 1 stud, szerokosc dopasowana do faktycznego korytarza
+   miedzy barierkami (±5 studow od osi), dlugosc: cala rampa + 5 studow zapasu po kazdej stronie —
+   **187/187 trafien na wszystkich 8 rampach, zero dziur**, obejmuje zarowno styk plac-rampa jak i
+   styk rampa-plot w jednym przebiegu.
+2. **Playtest (dummy Humanoid, `Humanoid:MoveTo`, serwer):** 16 przejazdow (8 ramp × 2 kierunki:
+   plac→plot i plot→plac) — **`FloorMaterial=Air` nie wystapil ani razu po wyladowaniu** na zadnym
+   z 16 przejazdow; pozycje koncowe konsekwentnie ladowaly w oczekiwanym pasie wysokosci (~-0.8..-0.9
+   przy Placu, ~18.4-19.2 przy plocie), zero sladu upadku/Freefall.
+   (Wczesniejszy test przez prawdziwy input WASD na kliencie dal absurdalny wynik — postac na piasku
+   dna morskiego, Y=-11 — okazalo sie to artefaktem **przestarzalej sesji playtestu** sprzed
+   ostatniej edycji `PlazaFill`; Roblox playtest forkuje DataModel przy starcie, wiec zmiany w trybie
+   edycji nie propagujа się do juz dzialajacej sesji. Restart playtestu + swiezy pomiar dal spojne,
+   czyste wyniki.)
+
+**Andreas: Ctrl+S w Studio.** 8 nowych czesci (`PlazaFill`, jedna na rampe) pod
+`Workspace.Hub.Bridges.RampN` — zero zmian w `src/`.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
