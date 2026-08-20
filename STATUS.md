@@ -1043,6 +1043,52 @@ przebudowuje `Workspace.Hub.UnderwaterDecor` (nowa struktura Coral/Flora/Fish + 
 dodaje `StarterPlayer.StarterCharacterScripts.NoSwim` (jedyna zmiana poza samym Hubem/Terrainem,
 ale nadal build-only przez MCP — zero zmian w `src/`).
 
+## EssenceTickController fix + audit skryptow mapy pod katem exploitow (2026-08-20, jedenasty przebieg)
+
+**1. Root cause bledu `EssenceTickController:57: attempt to index nil with 'new'`** (zglaszany
+przez Andreasa, powtarzajacy sie co ~30s w poprzednim playteście, zostawiony wtedy jako
+"poza zakresem"): zwykla literowka w `spawnSparkle` — `NumRange.new(...)` zamiast poprawnego
+Roblox globala `NumberRange.new(...)`. `NumRange` nie istnieje jako typ w Luau, wiec wyrazenie
+zwraca `nil`, a indeksowanie `.new` na `nil` daje dokladnie zgloszony blad. Wystapienie na 2
+liniach (`Lifetime` w linii 57, `Speed` w linii 58). Grep calego `src/` potwierdzil, ze to
+jedyne 2 wystapienia literowki w calym kodzie.
+
+Naprawione w `src/StarterPlayer/StarterPlayerScripts/Controllers/EssenceTickController.luau`
+ORAZ recznie w zywym Studio (`set_script_source` na
+`game.StarterPlayer.StarterPlayerScripts.Bootstrap.Controllers.EssenceTickController` — projekt
+synchronizuje sie z Rojo tylko czesciowo, `src/` -> DataModel wymaga recznego pchniecia przez
+MCP, patrz [[cards-project]]).
+
+**Weryfikacja live:** restart playtestu, `get_runtime_logs` filtrowane po
+`EssenceTickController` i po `"attempt to index nil"` — brak jakichkolwiek bledow, tylko czyste
+`Init`/`Start` z `ServiceRegistry`. Blad nie wystepuje juz.
+
+**2. Audit skryptow mapy pod katem exploita/wstrzykniecia** (Andreas obawial sie, ze cos
+zlosliwego moglo wejsc razem z wgranymi assetami Creator Store — "Realistic Water" resztki mapy +
+Coral Reef Pack / Underwater Flora / Saltwater fish pack): przeskanowane
+`game:GetDescendants()` pod katem `LuaSourceContainer` poza znanymi bezpiecznymi korzeniami
+(ServerScriptService, ReplicatedStorage, StarterPlayer.StarterPlayerScripts.Bootstrap,
+StarterGui) — znaleziono dokladnie 4, wszystkie wlasne/znane: `Workspace.Hub.ConveyorDriver`
+(preexisting, udokumentowany wczesniej), `Workspace.Hub.UnderwaterDecor.Fish.FishSwim` (napisany
+w tym oknie), `StarterPlayer.StarterPlayerScripts.Bootstrap` (sam root-loader, wykryty tylko bo
+skan liczyl go jako "poza drzewem Bootstrap" zamiast "jest Bootstrapem") i
+`StarterPlayer.StarterCharacterScripts.NoSwim` (napisany w tym oknie). Zero obcych skryptow.
+
+Dodatkowo sprawdzone: `PackageLink` pod Workspace (0), `RemoteEvent`/`RemoteFunction`/
+`BindableEvent`/`BindableFunction` pod Workspace (0 — zgodnie z konwencja projektu, ze caly
+networking siedzi w `ReplicatedStorage`), zawartosc `Workspace.CloudSea` (dekoracyjny Part bez
+skryptow, preexisting, nizej niz cala reszta mapy — nie stanowi zagrozenia).
+
+**Wniosek: mapa jest czysta.** `insert_asset` (polityka bezpieczenstwa MCP) automatycznie usuwa
+wszystkie `LuaSourceContainer`y i `PackageLink`i z kazdego wstawianego assetu Creator Store przed
+sparentowaniem — dziala zgodnie z oczekiwaniami, potwierdzone ponownie w tym audycie zero
+znalezionych obcych skryptow gdziekolwiek w DataModelu.
+
+**Andreas: Ctrl+S w Studio.** Ten przebieg zmienia jeden `src/` plik
+(`EssenceTickController.luau`, literowka) + odpowiadajacy zywy skrypt w Studio przez
+`set_script_source`. Zero zmian w Terrain/Workspace poza tym, co juz bylo z poprzedniego
+przebiegu.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu

@@ -54,8 +54,8 @@ local function spawnSparkle(gen: BasePart)
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
 	emitter.Color = ColorSequence.new(Color3.fromRGB(255, 221, 120))
-	emitter.Lifetime = NumRange.new(0.4, 0.7)
-	emitter.Speed = NumRange.new(3, 6)
+	emitter.Lifetime = NumberRange.new(0.4, 0.7)
+	emitter.Speed = NumberRange.new(3, 6)
 	emitter.SpreadAngle = Vector2.new(45, 45)
 	emitter.Rate = 0
 	emitter.Parent = attachment
