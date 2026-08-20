@@ -1137,6 +1137,30 @@ poza zakresem, wynik zweryfikowany przez bezposrednie odczyty DataModelu zamiast
 `Workspace.Hub.UnderwaterDecor.Coral/Flora/Fish` + przepisany `FishSwim` Script) — zero zmian w
 `src/`.
 
+## Fix: rafy/flora rozpadaly sie po Play (2026-08-20, trzynasty przebieg)
+
+Andreas zglosil: po wcisnieciu Play caly podwodny build "rozpada sie" — rafy/glazy/dekoracje
+mialy byc przykotwiczone do dna, tylko rybki maja swobodnie plywac.
+
+**Root cause:** audyt `Anchored` na wszystkich `BasePart` pod `UnderwaterDecor` wykazal, ze
+`Coral` (45/45) i `Fish` (140/140) byly juz w pelni zakotwiczone, ale **`Flora` mial 28 z 49
+czesci `Anchored=false`** (m.in. `RockFormation`, `Seaweed`, `SpongeCoral` w kazdym klonie
+"Underwater Flora") — pominiete przy budowie klastrow w poprzednim przebiegu. Fizyka po Play
+puszczala te 28 czesci w grawitacje, stad wrazenie ze caly build "sie rozpada".
+
+**Fix:** petla po wszystkich 3 folderach (`Coral`/`Flora`/`Fish`), `Anchored = true` na kazdym
+`BasePart` gdzie bylo `false` — 28 napraw, wszystkie we `Flora`.
+
+**Weryfikacja live:** zapisane pozycje 7 czesci `Flora` (co 7-ma, sample) PRZED Play (edit-mode)
+i PO ~75s dzialania playtestu (`target="server"`) — pozycje identyczne co do ulamka studa,
+`Anchored=true` potwierdzone. `get_runtime_logs` — zero bledow. Rybki (140, `Fish` folder) nadal
+w pelni ruchome przez `FishSwim` (Anchored=true + reczne `CFrame` w Heartbeat, nie fizyka —
+dlatego plywaja mimo zakotwiczenia). Ilosc rybek (140, cala paczka x4) juz "w miare sporo" i juz
+pokrywa caly akwen z poprzedniego przebiegu — bez zmian.
+
+**Andreas: Ctrl+S w Studio.** Zmiana to jedna wlasciwosc (`Anchored`) na 28 istniejacych czesciach
+pod `Workspace.Hub.UnderwaterDecor.Flora` — zero nowych instancji, zero zmian w `src/`.
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
