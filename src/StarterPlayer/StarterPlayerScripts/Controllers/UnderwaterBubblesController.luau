@@ -1,27 +1,61 @@
 --!strict
--- Controllers/UnderwaterBubblesController.luau — bąbelki sprzedające "jesteśmy pod wodą": ciągły
--- ambient z HumanoidRootPart (niski Rate, dryf w górę) + Emit() burst przy skoku (Humanoid.
--- StateChanged -> Jumping), żeby ruch gracza wizualnie "wzburzał" wodę. CharacterAdded, bo HRP
--- (i Attachment na nim) ginie razem z martwym modelem przy respawnie. Dodatkowo: pole ambientowych
--- bąbelków rozsianych po całej Plaza (niezależnych od gracza), losowe punkty na PlazaFloor, wolno
--- unoszą się w górę i znikają — czyste tło sprzedające "jesteśmy pod wodą" nawet gdy gracz stoi.
+-- Controllers/UnderwaterBubblesController.luau — bąbelki sprzedające "jesteśmy pod wodą".
 --
--- Tekstura: pusty Texture = "" -> domyślna wbudowana okrągła cząsteczka Robloxa (NIE Creator Store
--- rbxassetid -- Decal ID z search_assets to ID KATALOGOWE, nie to samo co realny content ID
--- obrazka; NIE smoke_main.dds -- działał, ale wygląda jak niewyraźna chmurka, nie bańka; pusty
--- Texture daje czysty okrągły kształt bez zależności od CDN).
--- Size 0.6-1.5 + nasycony cyan (140,220,255), NIE pastelowy blekit -- zweryfikowane zrzutami ekranu
--- z klienta: mała/jasna wersja TECHNICZNIE działała (particle się tworzył), ale zlewała się z
--- białymi butami postaci i jasną podłogą, więc potrzeba większego rozmiaru + kontrastowego koloru
--- niż "realistyczna" bańka, by faktycznie było widać podczas gry z normalnego dystansu kamery.
+-- UWAGA: ParticleEmitter nie renderowal sie WCALE w tej sesji Studio (zweryfikowane: nawet
+-- ogromny czerwony 3-studowy Emit() 5 studow przed kamera byl niewidoczny, podczas gdy Fire
+-- na tym samym Part renderowal sie normalnie) -- zamiast dalej gonic przyczyne (silnik/ustawienie
+-- Studio poza nasza kontrola), bąbelki to zwykle klonowane Party (Shape=Ball), ktore na 100%
+-- renderuja sie tak samo jak kazdy inny Part w grze. Ruch (dryf w gore + zanikanie) sterowany
+-- reczna petla task.spawn zamiast wlasciwosci ParticleEmittera.
+--
+-- Zrodlo przy postaci: throttled Heartbeat, nie eventy -- Humanoid:GetState() sprawdzany co klatke
+-- (chodzenie = MoveDirection>0 i nie w powietrzu, w locie = Jumping/Freefall), bo to jeden prosty
+-- warunek zamiast zylowania StateChanged+Running osobno. CharacterAdded, bo HRP ginie z martwym
+-- modelem przy respawnie.
+--
+-- Pole mapowe: te same bąbelki-Party, losowe punkty na PlazaFloor (raycast w dol, bo floor to
+-- obrocony slab -- Position.Y+Size.Y/2 dawalby zla wysokosc, patrz komentarz w spawnMapBubbles).
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 
 local UnderwaterBubblesController = {}
 
 local BUBBLE_COLOR = Color3.fromRGB(140, 220, 255)
 local player = Players.LocalPlayer
+
+local function spawnBubble(origin: Vector3, sizeMin: number, sizeMax: number, riseMin: number, riseMax: number, lifeMin: number, lifeMax: number)
+	local b = Instance.new("Part")
+	b.Name = "Bubble"
+	b.Shape = Enum.PartType.Ball
+	b.Material = Enum.Material.Neon
+	b.Color = BUBBLE_COLOR
+	local size = sizeMin + math.random() * (sizeMax - sizeMin)
+	b.Size = Vector3.new(size, size, size)
+	b.Transparency = 0.1
+	b.CanCollide = false
+	b.CanQuery = false
+	b.CastShadow = false
+	b.Anchored = true
+	b.Position = origin + Vector3.new((math.random() * 2 - 1) * 0.6, 0, (math.random() * 2 - 1) * 0.6)
+	b.Parent = Workspace
+
+	task.spawn(function()
+		local duration = lifeMin + math.random() * (lifeMax - lifeMin)
+		local riseSpeed = riseMin + math.random() * (riseMax - riseMin)
+		local driftX = (math.random() * 2 - 1) * 0.6
+		local driftZ = (math.random() * 2 - 1) * 0.6
+		local elapsed = 0
+		while elapsed < duration and b.Parent do
+			local dt = task.wait(0.05)
+			elapsed += dt
+			b.Position += Vector3.new(driftX * dt, riseSpeed * dt, driftZ * dt)
+			b.Transparency = 0.1 + (elapsed / duration) * 0.9
+		end
+		b:Destroy()
+	end)
+end
 
 local function attach(character: Model)
 	local hrp = character:WaitForChild("HumanoidRootPart", 10) :: BasePart?
@@ -30,56 +64,42 @@ local function attach(character: Model)
 		return
 	end
 
-	local attachment = Instance.new("Attachment")
-	attachment.Position = Vector3.new(0, -2, 0)
-	attachment.Parent = hrp
+	local walkAccum = 0
+	local airAccum = 0
+	local conn: RBXScriptConnection
+	conn = RunService.Heartbeat:Connect(function(dt: number)
+		if not character.Parent or not hrp.Parent then
+			conn:Disconnect()
+			return
+		end
 
-	local ambient = Instance.new("ParticleEmitter")
-	ambient.Texture = ""
-	ambient.Color = ColorSequence.new(BUBBLE_COLOR)
-	ambient.Size = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.6),
-		NumberSequenceKeypoint.new(1, 1.3),
-	})
-	ambient.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	ambient.Lifetime = NumberRange.new(1.2, 2)
-	ambient.Speed = NumberRange.new(2, 3.5)
-	ambient.SpreadAngle = Vector2.new(25, 25)
-	ambient.Acceleration = Vector3.new(0, 4, 0)
-	ambient.Rate = 10
-	ambient.Parent = attachment
+		local feet = hrp.Position - Vector3.new(0, hrp.Size.Y / 2 + 1, 0)
+		local state = humanoid:GetState()
+		local airborne = state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall
 
-	local burst = Instance.new("ParticleEmitter")
-	burst.Texture = ""
-	burst.Color = ColorSequence.new(BUBBLE_COLOR)
-	burst.Size = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0.7),
-		NumberSequenceKeypoint.new(1, 1.5),
-	})
-	burst.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 0),
-		NumberSequenceKeypoint.new(1, 1),
-	})
-	burst.Lifetime = NumberRange.new(0.6, 1)
-	burst.Speed = NumberRange.new(6, 10)
-	burst.SpreadAngle = Vector2.new(50, 50)
-	burst.Acceleration = Vector3.new(0, 6, 0)
-	burst.Rate = 0
-	burst.Parent = attachment
-
-	humanoid.StateChanged:Connect(function(_, new)
-		if new == Enum.HumanoidStateType.Jumping then
-			burst:Emit(18)
+		if airborne then
+			airAccum += dt
+			if airAccum >= 0.07 then
+				airAccum = 0
+				spawnBubble(feet, 0.7, 1.4, 3, 5, 0.7, 1.2)
+			end
+		else
+			airAccum = 0
+			if humanoid.MoveDirection.Magnitude > 0.1 then
+				walkAccum += dt
+				if walkAccum >= 0.16 then
+					walkAccum = 0
+					spawnBubble(feet, 0.5, 1, 2, 3.2, 0.6, 1)
+				end
+			else
+				walkAccum = 0
+			end
 		end
 	end)
 end
 
--- Pole ambientowych bąbelków na całej Plaza: losowe (x, z) w obrębie PlazaFloor, każdy punkt to
--- osobny niski Rate (rzadkie, niesynchronizowane pęcherzyki) + długi Lifetime (dryf daleko w górę
--- zanim spadnie Transparency=1), żeby czuć skalę mapy, nie tylko okolicę gracza.
+-- Pole ambientowych bąbelków na całej Plaza: losowe (x, z) w obrębie PlazaFloor, raz wyliczone
+-- (raycast pod katem orientacji Partu), potem petla co ~0.4s stawia bąbelek na losowym punkcie.
 local MAP_BUBBLE_SPOTS = 18
 local MAP_INSET = 6 -- studów od krawędzi PlazaFloor, żeby nie wystawać poza platformę
 
@@ -98,49 +118,28 @@ local function spawnMapBubbles()
 	rayParams.FilterType = Enum.RaycastFilterType.Include
 	rayParams.FilterDescendantsInstances = { floor }
 
-	local halfX = math.max(floor.Size.X, floor.Size.Y, floor.Size.Z) / 2 - MAP_INSET
-	local halfZ = halfX
+	local half = math.max(floor.Size.X, floor.Size.Y, floor.Size.Z) / 2 - MAP_INSET
 
-	for i = 1, MAP_BUBBLE_SPOTS do
-		local x = floor.Position.X + (math.random() * 2 - 1) * halfX
-		local z = floor.Position.Z + (math.random() * 2 - 1) * halfZ
-
+	local spots: { Vector3 } = {}
+	for _ = 1, MAP_BUBBLE_SPOTS do
+		local x = floor.Position.X + (math.random() * 2 - 1) * half
+		local z = floor.Position.Z + (math.random() * 2 - 1) * half
 		local origin = Vector3.new(x, floor.Position.Y + 200, z)
 		local hit = Workspace:Raycast(origin, Vector3.new(0, -400, 0), rayParams)
-		if not hit then
-			continue
+		if hit then
+			table.insert(spots, hit.Position + Vector3.new(0, 0.3, 0))
 		end
+	end
 
-		local carrier = Instance.new("Part")
-		carrier.Name = "MapBubbleSpot"
-		carrier.Anchored = true
-		carrier.CanCollide = false
-		carrier.CanQuery = false
-		carrier.Transparency = 1
-		carrier.Size = Vector3.new(1, 1, 1)
-		carrier.Position = hit.Position + Vector3.new(0, 0.3, 0)
-		carrier.Parent = Workspace
+	if #spots == 0 then
+		warn("[UnderwaterBubblesController] raycast nie trafil PlazaFloor ani razu — pomijam pole ambientowych bąbelków")
+		return
+	end
 
-		local attachment = Instance.new("Attachment")
-		attachment.Parent = carrier
-
-		local emitter = Instance.new("ParticleEmitter")
-		emitter.Texture = ""
-		emitter.Color = ColorSequence.new(BUBBLE_COLOR)
-		emitter.Size = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0.5),
-			NumberSequenceKeypoint.new(1, 1.1),
-		})
-		emitter.Transparency = NumberSequence.new({
-			NumberSequenceKeypoint.new(0, 0),
-			NumberSequenceKeypoint.new(1, 1),
-		})
-		emitter.Lifetime = NumberRange.new(4, 7)
-		emitter.Speed = NumberRange.new(2, 4)
-		emitter.SpreadAngle = Vector2.new(8, 8)
-		emitter.Acceleration = Vector3.new(0, 2.5, 0)
-		emitter.Rate = 0.15 + math.random() * 0.35
-		emitter.Parent = attachment
+	while true do
+		local spot = spots[math.random(1, #spots)]
+		spawnBubble(spot, 0.7, 1.4, 2, 3.5, 4, 7)
+		task.wait(0.3 + math.random() * 0.3)
 	end
 end
 

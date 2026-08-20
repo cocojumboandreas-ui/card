@@ -1491,6 +1491,48 @@ wczesniejszy byl fajniejszy i zeby te bobleki tez randomo po mapie szly w gore i
 **Andreas: Ctrl+S w Studio — zmieniony `Bootstrap.Controllers.UnderwaterBubblesController`
 (tekstura, rozmiar/kolor, nowa funkcja `spawnMapBubbles`), nic nie zapisane na dysku poza `src/`.**
 
+## Babelki — ParticleEmitter porzucony na rzecz klonowanych Party (2026-08-20, dwudziesty drugi przebieg)
+
+Andreas: "babelki nie dzialaja" (dalej, mimo dwudziestego pierwszego przebiegu). Diagnostyka na
+zywo: ogromny (3 study) czerwony `ParticleEmitter:Emit()` 5 studow przed kamera, 10s lifetime —
+NIEWIDOCZNY w zrzucie ekranu. Kontrolny `Fire` na tym samym Parcie w tym samym miejscu —
+renderuje sie normalnie. Wniosek: `ParticleEmitter` (kazdy, niezaleznie od tekstury/rozmiaru/
+koloru) nie renderowal sie WCALE w tej sesji Studio z nieznanej przyczyny poza kodem gry
+(silnik/ustawienie renderowania Studio) — dwudziesty pierwszy przebieg "naprawil" rozmiar/kolor
+na cos, co i tak bylo fundamentalnie niewidoczne.
+
+**Decyzja: porzucic ParticleEmitter calkowicie, zastapic zwyklymi klonowanymi `Part`ami**
+(Shape=Ball) — Part renderuje sie zawsze, to podstawa silnika. `UnderwaterBubblesController`
+przepisany:
+1. `spawnBubble(origin, ...)` — tworzy mala kule (Neon, CanCollide=false, Anchored), potem
+   `task.spawn` petla co 0.05s przesuwa ja w gore + lekki losowy dryf X/Z, zwieksza
+   `Transparency` do 1 na koncu zycia, `Destroy()`.
+2. Zamiast eventow (StateChanged/Running) throttled `RunService.Heartbeat` per postac —
+   `Humanoid:GetState()` co klatke: `Jumping`/`Freefall` = "w locie" (czestsze, wieksze bąbelki),
+   `MoveDirection.Magnitude>0.1` i nie w powietrzu = chodzenie (rzadsze, mniejsze) — jeden prosty
+   warunek zamiast zylowania wielu polaczen.
+3. `spawnMapBubbles()` — ta sama logika raycastu na `PlazaFloor` co w poprzednim przebiegu (bez
+   zmian, dalej poprawna), ale teraz petla `while true do spawnBubble(...) task.wait(...) end`
+   zamiast `ParticleEmitter.Rate`.
+4. **Drugi buglet znaleziony PO przepisaniu:** pierwsza wersja uzywala `Material = Glass` —
+   pod hazy podwodnym ambientem Glass renderuje sie niemal czarny/przezroczysty, praktycznie
+   niewidoczny (ten sam blad "technicznie dziala, wizualnie znika" co oryginalny ParticleEmitter
+   w dwudziestym przebiegu). Fix: `Material = Neon` (ignoruje oswietlenie sceny, zawsze
+   wyrazisty) + `Transparency` start 0.1 zamiast 0.25+ (dluzej mocno widoczne przed zanikiem).
+5. **Weryfikacja (playtest, `eval_client_runtime` + `capture_screenshot`, kamera Scriptable
+   blisko postaci):** po fixie Neon+Transparency wyraznie widoczne jasnocyjanowe kule —
+   rozsiane po Placu (pole mapowe) ORAZ przy skoku postaci (Freefall state potwierdzony).
+   Przed fixem (Glass) — bąbelki istnialy (potwierdzone odczytem `Workspace:GetChildren()`,
+   11+ sztuk), ale byly praktycznie niewidoczne w zrzucie.
+6. Andreas recznie dodal do Workspace testowy model `Bubbles` (4x `Part` "Bubble" + stary,
+   niegrozny `Script` z Toolboxa — zwykla oscylacja CFrame w petli, bez remote'ow/HTTP/loadstring,
+   zweryfikowany jako bezpieczny) w ramach proby diagnozy. Po przepisaniu kontrolera na wlasne
+   klonowane Party ten model stal sie zbedny — usuniety z Workspace (`workspace.Bubbles:Destroy()`)
+   po potwierdzeniu, ze nowy kod dziala niezaleznie.
+
+**Andreas: Ctrl+S w Studio — zmieniony `Bootstrap.Controllers.UnderwaterBubblesController`
+(ParticleEmitter -> klonowane Party, Neon), usuniety recznie dodany `Workspace.Bubbles`.**
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
