@@ -1344,6 +1344,55 @@ czescia zadania, ale bez tego gracz spawnowalby sie w powietrzu nad nowym dnem.
 **Andreas: Ctrl+S w Studio — caly ten przebieg to instancje w zywym DataModelu, nic nie jest
 jeszcze zapisane na dysku.**
 
+## Usuniecie niewidzialnych plyt + podniesienie plotow na piasek + plaskie sciezki (2026-08-20, osiemnasty przebieg)
+
+Trzy poprawki zlecone przez Andreasa zaraz po poprzednim (siedemnastym) przebiegu — flatten byl
+dobry, ale zostawil niewidzialne bariery, ploty zatopione 1 stud w piasku, i brak sciezek miedzy
+plotami a placem.
+
+1. **Usuniete niewidzialne plyty** — `Workspace.Hub.Barriers` (caly folder, 96 czesci):
+   `PlotBarriersN.SideWall`/`InwardWall`/`OutwardCap` (x8 plotow) + `PlazaRing.RingSeg` (x48) —
+   wszystkie `Transparency=1, CanCollide=true`, niewidoczne kolizyjne "plyty" pozostale z ery
+   plywajacych wysp (trzymaly graczy na platformach, zbedne teraz gdy caly hub to jeden plaski
+   poziom bez ryzyka spadniecia). Folder skasowany w calosci.
+
+2. **Ploty podniesione na piasek (nie w piasku)** — przed poprawka `Pad` (platforma plotu)
+   mial gorna powierzchnie na Y=-15, piasek na Y=-14 = 1 stud zatopienia. Wszystkie 8
+   `PlotAnchorN` podniesione `PivotTo(GetPivot() + Vector3.new(0,2,0))` — `Pad` teraz na Y=-13,
+   1 stud NAD piaskiem (widoczna krawedz/cien pod platforma, potwierdzone zrzutem). Orientacja
+   zachowana (PivotTo), `PlotService` bierze `AnchorMarker.CFrame` live wiec nowe ploty graczy
+   trafiaja automatycznie na podniesiony poziom.
+
+3. **Plaskie sciezki plac<->plot (szybsze poruszanie)** — nowy `Workspace.Hub.Walkways`, po 2
+   pasy (`LaneN_Out`/`LaneN_Back`) na kazdy z 8 plotow, kazdy pas = 2 czesci:
+   - `_Walk` (widoczna, Sandstone, `CanCollide=true`, plaska, gorna powierzchnia flush z
+     piaskiem Y=-14 na kazdym punkcie sciezki — mierzone raycastem co ~3 study, nie zalozony
+     staly Y).
+   - `_Sensor` (niewidoczna, `CanCollide=false`, `CanTouch=true`, wyzsza — obejmuje wysokosc
+     HumanoidRootPart), otagowana `CollectionService` tagiem `"ConveyorLane"`, atrybuty
+     `ConveyorDir` (jednostkowy wektor kierunku, przeciwny dla Out/Back) i `ConveyorSpeed=22`.
+   - **`Workspace.Hub.ConveyorDriver` przepisany** — stary kod pollowal
+     `belt:GetTouchingParts()` co Heartbeat, co dzialalo na starych pochylych rampach (grube
+     bryly), ale NIE dziala na plaskich niekolidujacych sensorach: `GetTouchingParts()` nie
+     odzwierciedla nakladania sie czesci z `CanCollide=false` (potwierdzone empirycznie —
+     `GetPartsInPart` widzial realne nakladanie, `GetTouchingParts` nie). Nowa wersja subskrybuje
+     `Touched`/`TouchEnded` (te DZIALAJA poprawnie dla `CanCollide=false`+`CanTouch=true`,
+     potwierdzone testem) i trzyma zywy zbior dotykajacych `HumanoidRootPart` na Heartbeat.
+   - Zweryfikowane w live playteście: pchanie ~22 study/s w obu kierunkach (Out i Back osobno),
+     0 kolizji dekoracji z nowymi sciezkami (44 przedmioty, 0 naruszen), raycast sweep
+     plac->krawedz-plotu na wszystkich 8 sciezkach: 0 luk, maxStep=0.00 (idealnie plasko,
+     jedyny "stopien" to zamierzony 1-stud wjazd na podniesiona platforme plotu).
+
+**Zrzuty:** zolnierz-widok pokazuje podniesiona platforme plotu z widoczna krawedzia/cieniem nad
+piaskiem (dowod ze NIE jest juz zatopiona) + fragment plaskiej sciezki w tle. Aerial (kamera
+Scriptable, podwodna sztuczka Y=42 jak w poprzednim przebiegu) pokazuje wszystkie 8 podniesionych
+platform rownomiernie rozstawionych wokol fontanny, otwarty plaski piasek miedzy nimi, zero
+widocznych artefaktow po usunietych barierach.
+
+**Andreas: Ctrl+S w Studio — ten przebieg to znowu tylko zywy DataModel (usuniecie Barriers,
+podniesienie 8 PlotAnchorN, nowy folder Walkways, przepisany `ConveyorDriver.Source`), nic nie
+jest zapisane na dysku.**
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
