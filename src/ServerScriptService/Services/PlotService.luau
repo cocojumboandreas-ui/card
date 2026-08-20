@@ -27,6 +27,7 @@ local TotemConfig = require(Shared:WaitForChild("TotemConfig"))
 local CardArtConfig = require(Shared:WaitForChild("CardArtConfig"))
 local TierColorConfig = require(Shared:WaitForChild("TierColorConfig"))
 local EssenceRateConfig = require(Shared:WaitForChild("EssenceRateConfig"))
+local TierAuraConfig = require(Shared:WaitForChild("TierAuraConfig"))
 
 local PlotService = {}
 
@@ -121,13 +122,21 @@ local function buildAnchorSlots(): { PlotSlot }
 end
 
 -- Ustawia wygląd JEDNEGO slotu na żywej instancji plotu. totemId=nil/"" -> stan pusty.
+-- Aura (AuraLight/AuraMount.AuraParticles/AuraRays/RarityGlow) to nowe instancje dołożone do
+-- PlotTemplate (POLISH kart, 2026-08-20) -- CardArt/RarityBorder/TotemId NIE zmienione, więc
+-- PlotController/EssenceTickController dalej działają bez modyfikacji.
 local function renderSlot(plotModel: Model, slotIndex: number, totemId: string?)
 	local slotModel = plotModel:FindFirstChild("Slot" .. slotIndex)
 	local cardFrame = slotModel and slotModel:FindFirstChild("CardFrame")
 	local frame = cardFrame and cardFrame:FindFirstChild("Frame")
 	local border = cardFrame and cardFrame:FindFirstChild("RarityBorder")
+	local glow = cardFrame and cardFrame:FindFirstChild("RarityGlow")
 	local surfaceGui = frame and frame:FindFirstChild("SurfaceGui")
 	local cardArt = surfaceGui and surfaceGui:FindFirstChild("CardArt")
+	local light = frame and frame:FindFirstChild("AuraLight")
+	local mount = frame and frame:FindFirstChild("AuraMount")
+	local particles = mount and mount:FindFirstChild("AuraParticles")
+	local rays = mount and mount:FindFirstChild("AuraRays")
 	if not (frame and border and cardArt) then
 		return
 	end
@@ -138,16 +147,65 @@ local function renderSlot(plotModel: Model, slotIndex: number, totemId: string?)
 	local frameInst = frame :: Instance
 	local borderPart = border :: BasePart
 	local cardArtLabel = cardArt :: ImageLabel
+	local glowPart = glow :: BasePart?
+	local lightInst = light :: PointLight?
+	local particlesInst = particles :: ParticleEmitter?
+	local raysInst = rays :: ParticleEmitter?
 
 	local totem = totemId and totemId ~= "" and TotemConfig.Totems[totemId] or nil
 	if totem then
 		cardArtLabel.Image = CardArtConfig.Images[totemId :: string] or ""
-		borderPart.Color = TierColorConfig.tierColor(totem.tier)
+		local color = TierColorConfig.tierColor(totem.tier)
+		borderPart.Color = color
 		frameInst:SetAttribute("TotemId", totemId)
+
+		local aura = TierAuraConfig.get(totem.tier)
+		if aura then
+			if glowPart then
+				glowPart.Color = color
+				glowPart.Transparency = aura.glowTransparency
+				local baseSize = glowPart:GetAttribute("BaseSize")
+				if typeof(baseSize) == "Vector3" then
+					glowPart.Size = baseSize * aura.glowSizeMult
+				end
+			end
+			if lightInst then
+				lightInst.Color = color
+				lightInst.Brightness = aura.lightBrightness
+				lightInst.Range = aura.lightRange
+				lightInst.Enabled = true
+			end
+			if particlesInst then
+				particlesInst.Color = ColorSequence.new(color)
+				particlesInst.Rate = aura.particleRate
+				particlesInst.Size = NumberSequence.new(aura.particleSize.Min, aura.particleSize.Max)
+				particlesInst.Lifetime = aura.particleLifetime
+				particlesInst.Speed = aura.particleSpeed
+				particlesInst.SpreadAngle = aura.spreadAngle
+				particlesInst.Enabled = aura.particleRate > 0
+			end
+			if raysInst then
+				raysInst.Color = ColorSequence.new(color)
+				raysInst.Enabled = aura.rays
+			end
+		end
 	else
 		cardArtLabel.Image = ""
 		borderPart.Color = EMPTY_BORDER_COLOR
 		frameInst:SetAttribute("TotemId", "")
+
+		if glowPart then
+			glowPart.Transparency = 1
+		end
+		if lightInst then
+			lightInst.Enabled = false
+		end
+		if particlesInst then
+			particlesInst.Enabled = false
+		end
+		if raysInst then
+			raysInst.Enabled = false
+		end
 	end
 end
 

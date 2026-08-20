@@ -1,8 +1,10 @@
 # STATUS — Roll a Rune
 
-Ostatnia aktualizacja: 2026-08-19, **PIVOT: start przejscia z plaskiej karcianki na 3D
-COLLECTION-TYCOON** — patrz sekcje "Pivot na tycoon — T1 szkielet plotu", "T2 przydzial plotow +
-wypelnianie slotow" i "T3 pasywna esencja online+offline" (2026-08-19) ponizej.
+Ostatnia aktualizacja: 2026-08-20, **POLISH displayow kart 3D — aury per tier** — patrz sekcja
+"POLISH displayow kart — aury per tier + luk + animacja" (2026-08-20) na koncu pliku. Wczesniej
+2026-08-19, **PIVOT: start przejscia z plaskiej karcianki na 3D COLLECTION-TYCOON** — patrz sekcje
+"Pivot na tycoon — T1 szkielet plotu", "T2 przydzial plotow + wypelnianie slotow" i "T3 pasywna
+esencja online+offline" (2026-08-19) ponizej.
 Silnik/Stworki/paczki/merge/esencja z karcianki ZOSTAJA i wpinaja sie jako tresc, nic nie
 wyrzucone. Run/deckbuilder -> tryb wtorny na pozniej. Poprzedni stan (System 4 packi/daily/luck
 zablokowane na decyzji Andreasa o strukturze tabel) jest teraz W TLE, nie skasowany — patrz
@@ -2480,3 +2482,62 @@ CFrame/atrybuty), wiec swiezy playtest automatycznie pokaze poprawiony uklad bez
 
 **Andreas: zapisz plac w Studio (Ctrl+S)** — to kolejna zmiana tylko w live DataModelu (CFrame 4
 partow), nic w `src/` sie nie zmienilo w tym kroku.
+
+## Resurface Hub — Material sweep (2026-08-20)
+
+Kosmetyczny przebieg na prosbe Andreasa: wszystkie **1215 BasePartow pod `workspace.Hub`**
+przestawione na `Material = Enum.Material.Plastic` + `MaterialVariant = "Studs"` (live edit-mode,
+`mass_set_property`/petla `execute_luau` po `GetDescendants`). Czysto wizualny sweep, zero zmian w
+`src/` — nie dotyka geometrii, kolorow ani skryptow, tylko jednolita tekstura powierzchni Huba.
+
+**Andreas: zapisz plac w Studio (Ctrl+S)** — material/materialVariant na 1215 partach to zmiana
+tylko w live DataModelu, nic automatycznie nie zapisuje.
+
+## POLISH displayow kart — aury per tier + luk + animacja (2026-08-20)
+
+Brief Andreasa: "swiecace aury per tier (referencja: anime-card-tycoon)". Szesc wymagan, wszystkie
+zweryfikowane live w playtescie.
+
+**Nowy config — jedyne zrodlo intensywnosci aury:** `Shared/Configs/TierAuraConfig.luau` (kolor
+zawsze z `TierColorConfig`, ten plik trzyma TYLKO intensywnosc). Tabela per tier
+(particleRate/lightBrightness/glowTransparency/rays — pelna eskalacja Common→Legendary):
+Common (0 czastek, brightness 1.2, glow prawie niewidoczne), Uncommon (3, 2.5), Rare (8, 4.0),
+Epic (16, 6.0), Legendary (30 czastek, brightness 9.0, glowTransparency 0.12 najmocniejsze halo,
+**dodatkowy emiter `AuraRays`** — jedyny tier z promieniami, "must-have" z briefu).
+
+**`PlotTemplate` (live-DataModel-only, ServerStorage) — restrukturyzacja wszystkich 10 slotow:**
+`Frame` powiekszony do portretowego 5.4x7.2x0.4 (dokladnie 3:4, `CanvasSize` naprawiony na
+900x1200 zeby PNG nie sie rozciagal), dolozone `AuraLight` [PointLight] + `AuraMount` [Attachment]
+z `AuraParticles`/`AuraRays` [ParticleEmitter, `rbxasset://textures/particles/sparkles_main.dds` —
+omija znany bug renderowania `rbxassetid://` w tej sesji Studio] pod `Frame` (jadą z karta za
+darmo przy `PivotTo`, bo `CardFrame.PrimaryPart = Frame`). Wszystkie 10 `CardFrame` otagowane
+`CollectionService` tagiem `"CardDisplay"`. **Uklad przelozony na luk** (promien 32, `ARC_FOCAL`
+przed plotem, rozpietosc 96°) zamiast prostej linii wzdluz `BackWall` — `CornerClusters`
+przesuniete o -2.5 studa w Z zeby nie kolidowac z nowym lukiem.
+
+**`PlotService.renderSlot` rozszerzone** (jedyna funkcja wypelniajaca sloty, wolana przez
+`renderAllSlots` przy przydziale plotu i `SetPlotSlot` przy akcji gracza): przy fill czyta
+`TierAuraConfig.get(totem.tier)` i ustawia kolor+jasnosc+rate na `AuraLight`/`AuraParticles`/
+`AuraRays`/`RarityGlow` (kolor zawsze z `TierColorConfig`, spojnie z `RarityBorder`); przy pustym
+slocie wszystko wylaczone (`Enabled=false`, `glowTransparency=1`). Zweryfikowane live przez
+`eval_server_runtime`: wywolanie `SetPlotSlot` z Legendary totemem poprawnie ustawia `TotemId` i
+wlacza `AuraLight`/`AuraParticles`/`AuraRays` z wartosciami z configu.
+
+**Nowy kontroler `Controllers/CardDisplayController.luau`** (wzorzec 1:1 z
+`ConveyorArrowsController` — tag `CollectionService` + retry-zbieranie co 0.5s do 10 prob, bo
+replikacja tagow to osobny kanal niz replikacja instancji): powolny obrot wokol Y (~30s/obrot) +
+delikatna lewitacja (sinus, amplituda 0.35 studa, rozjechana faza per karta) przez jeden
+`Model:PivotTo()` na klatke — aura jedzie z karta bez osobnego animowania, bo jest dzieckiem
+`Frame`. Zarejestrowany w `init.client.luau` ORDER (niezalezny od HUD-u). Zweryfikowane live:
+probka pivota karty dwa razy pod rzad pokazala plynny bob (Y -6.599→-6.561) i obrot LookVector
+przy stalym X/Z — poprawny spin+bob w miejscu, bez niepozadanej translacji.
+
+**Weryfikacja checklist (wszystko PASS):** karty pokazuja PNG (`CardArtConfig`), aura
+koloru+intensywnosci zgodna z tierem (Legendary = zloty luk + iskry, Common = prawie plaski),
+obrot+lewitacja plynne, uklad to polokrag/luk przed plotem, fill per-gracz (wlasny i cudze sloty)
+dziala bez zmiany istniejacych nazw (`PlotController`/`EssenceTickController` nietkniete).
+
+**Andreas: zapisz plac w Studio (Ctrl+S)** — `PlotTemplate` (uklad luku, nowe `AuraLight`/
+`AuraMount`/`AuraParticles`/`AuraRays`, `CanvasSize`, tag `CardDisplay`) i przesuniecie
+`CornerClusters` to zmiany tylko w live DataModelu; kod (`TierAuraConfig.luau`, `PlotService.luau`,
+`CardDisplayController.luau`, `init.client.luau`) jest juz w `src/` i wchodzi do gita tym commitem.
