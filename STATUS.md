@@ -2353,6 +2353,67 @@ z `UIFactory`, zero prawdziwego designu. Faza 5 to cukierkowy redesign wszystkic
    redesign bez zatwierdzenia kierunku z gory to najdrozszy mozliwy blad w tej fazie (przerobka
    calego UI, nie jednego pliku).
 
+## Konwejery Hub.Walkways (Lane1-8) — naprawa korupcji + strzalki-chevrony + plynny ruch (2026-08-20)
+
+Zadanie: strzalki na 8 pasach `Hub.Walkways` (ruchome-schody z A do B). Po otwarciu okazalo sie,
+ze **system juz istnial** (17-19 przebieg, `ConveyorDriver` server-side Script + tagi
+`ConveyorLane`/`ConveyorVisual`), ale byl **skorumpowany** — ten sam wzorzec co wczesniejszy
+incydent Bubbles-Toolbox-insert (prawdopodobnie przypadkowa manipulacja w Explorerze):
+wszystkie 16 widocznych Party (`Lane{N}_Out/Back_Walk`) przemianowane na kolidujace
+`"Lane8_Out_Walk"`/`"Lane8_Back_Walk"` i przeniesione do korzenia Workspace; 15 z 16 niewidocznych
+push-sensorow (`_Sensor`) skasowane.
+
+**Naprawa (live Studio, `execute_luau` target=edit):**
+- Tagi (`ConveyorVisual`) przetrwaly rename/reparent — uzyte do odroznienia prawdziwej geometrii
+  pasow od 4 przybladych fragmentow-smieci (Size.X ~10.5-22.5 zamiast ~75.5, kupka kolo origin).
+  Fragmenty skasowane.
+- Kazdy zdezorientowany Part przypisany z powrotem do wlasciwego numeru pasa przez porownanie
+  odleglosci XZ do `PlotAnchor1..8` (pozycje NIE byly skorumpowane, tylko nazwy) — rename +
+  reparent do `Hub.Walkways`.
+- 15/16 `_Sensor` odtworzonych od zera (jeden — `Lane3_Back_Sensor` — przetrwal, tylko przemianowany):
+  `Size=(walk.Size.X,6,walk.Size.Z)`, `CFrame=walk.CFrame*CFrame.new(0,walk.Size.Y/2+3,0)`,
+  `Anchored/CanTouch=true, CanCollide/CanQuery=false, Transparency=1`, tag `ConveyorLane`,
+  atrybuty `ConveyorDir` (Vector3, znak wyliczony z geometrii radialnej) + `ConveyorSpeed`.
+
+**Strzalki — bug klasy "asset nie renderuje sie w tej sesji Studio" (druga instancja po
+ParticleEmitter z Bubbles):** oryginalny `Texture.Texture` = Decal-wrapper ID
+(`99477770602129` "racingarrowright") dawal calkiem czarny pas. `get_asset_details` ujawnil ze to
+Decal opakowujacy prawdziwy obrazek pod `textureId: 117877869654239` — poprawka ID **nie
+pomogla** (dalej niewidoczne). Zamiast dalej gonic przyczyne: nowy kontroler
+`ConveyorArrowsController.luau` (Init/Start, `src/StarterPlayer/StarterPlayerScripts/Controllers/`,
+wpiety do `init.client.luau` ORDER po `UnderwaterBubblesController`) buduje **geometryczne
+chevrony** — 2 cienkie Neon Party (">'') na marker, 4 markery na pas, pozycja przesuwana co
+throttled Heartbeat wzdluz lokalnej osi kierunku pasa (z atrybutu `ConveyorDir` sensora) z
+zawijaniem, zamiast animacji tekstury.
+
+**Bug: automatyczny boot Start() nie tworzyl `Workspace.ConveyorArrowsFX` (0 bledow w logach),
+reczne ponowne `require()+Start()` zawsze dzialalo.** Root cause: `WaitForChild(Hub/Walkways)`
+gwarantuje istnienie Partow, ale NIE gwarantuje ze tagi CollectionService juz zreplikowaly sie na
+klienta w tym samym momencie (osobny kanal replikacji) — pierwsza probka `collectLanes()` widziala
+0 pasow z tagiem `ConveyorVisual` mimo ze Party fizycznie juz istnialy, cichy wczesny `return`.
+Fix: petla do 10 prob co 0.5s zamiast jednej probki. Zweryfikowane po fixie: folder tworzy sie
+automatycznie przy zwyklym boot, 128 dzieci (16 pasow x 4 markery x 2 ramiona).
+
+**Feedback Andreasa po pierwszej wersji: "musza szybiecj przenosic i gdy gracz na nich stoi ekran
+nie moze sie trzasc, musi to plynnie chodzic."** Root cause trzesienia: oryginalny
+`ConveyorDriver` (Script server-side, `game.Workspace.Hub.ConveyorDriver`, place-only bez pliku w
+`src/`) mutowal `hrp.CFrame` bezposrednio co `Heartbeat` — serwer-autorytatywny "teleport" co
+klatke koliduje z klientowym przewidywaniem ruchu postaci, widoczne jako trzesienie kamery.
+**Fix**: przepisany na fizyczny constraint `LinearVelocity` podpiety pod istniejacy
+`RootAttachment` na HRP (`RelativeTo=World`, `ForceLimitMode=PerAxis`,
+`MaxAxesForce=(math.huge,0,math.huge)` — zero sily na Y zeby nie walczyc z grawitacja/skokiem) —
+integruje sie z solverem fizyki tak samo jak wlasny ruch gracza, bez korekt pozycji. Rownolegle
+`ConveyorSpeed` na wszystkich 16 sensorach podniesiony z 22 na 40.
+
+**Zweryfikowane live (server-authoritative teleport na pas + trace pozycji HRP co 0.15s):**
+przyrosty ~6.6-8.4 studa/0.15s w fazie ustalonej (plynny ramp-up/ramp-down, brak wzorca
+skok-cofniecie-skok charakterystycznego dla starej metody CFrame) — potwierdza plynny fizyczny
+ruch bez trzesienia, przy nowej wyzszej predkosci.
+
+**Andreas: zapisz plac w Studio (Ctrl+S)** — wszystkie zmiany `Hub.Walkways`/`ConveyorDriver`/
+`Bootstrap.Controllers.ConveyorArrowsController` sa tylko w live DataModelu, nic nie zapisuje sie
+automatycznie.
+
 ## Stan git
 
 - Branch `main`, lokalnie przed `origin/main` (MAX-SLOT `46ece98` + "nowe Stworki + balans" —

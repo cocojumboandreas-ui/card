@@ -19,6 +19,7 @@ local ORDER = {
 	"PlotController", -- T2 (pivot tycoon): otwierany przez ClickDetector w świecie, nie przycisk HUD; po UIRootController (root "Plot")
 	"EssenceTickController", -- T3 (pasywna esencja): juice na fontannie własnego plotu, niezależny od HUD-u, po PlotController (GetMyPlot)
 	"UnderwaterBubblesController", -- bąbelki z HRP + burst na skoku, niezależny od HUD-u i reszty kontrolerów
+	"ConveyorArrowsController", -- geometryczne strzałki-chevrony na Hub.Walkways (Texture nie renderuje sie w tej sesji), niezależny od HUD-u
 	"OfflineEarnController", -- Faza 3: po UIRootController (root "Toast"), niezależny od HUD-u
 	"AnnouncementController", -- Faza 3: po UIRootController (root "Toast"), niezależny od HUD-u
 	"HudController",
