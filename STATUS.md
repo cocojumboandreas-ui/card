@@ -2414,6 +2414,35 @@ ruch bez trzesienia, przy nowej wyzszej predkosci.
 `Bootstrap.Controllers.ConveyorArrowsController` sa tylko w live DataModelu, nic nie zapisuje sie
 automatycznie.
 
+## Konwejery cd. — kierunek odwrocony + spawn na wlasnym plocie (2026-08-20)
+
+Drugi feedback Andreasa: **"tylko musza szybiecj przenosic"** (zalatwione wyzej) **"i zamien
+strzalki i ruchy bo sa odwrotnie."** Strzalki i fizyczny push czytaja TEN SAM atrybut
+`ConveyorDir` (sensor), wiec nie bylo miedzy nimi rozjazdu — caly kierunek byl po prostu
+odwrotny wzgledem oczekiwan. Fix: atrybut `ConveyorDir` odwrocony (`-dir`) na wszystkich 16
+sensorow `Hub.Walkways` (live edit-mode) — `ConveyorArrowsController` czyta ten atrybut przy
+kazdym `Start()`, wiec strzalki automatycznie podazaja za nowym kierunkiem bez zmiany kodu.
+Zweryfikowane: przy nowym playtescie `moveVec` gracza na `Lane1_Out` ma `dot=0.9997` z nowym
+(odwroconym) `ConveyorDir` — push idzie dokladnie w strone strzalek.
+
+**Spawn na wlasnym plocie zamiast domyslnego SpawnLocation w Hubie** (`PlotService.luau`):
+- `allocatePlot` przydzielal wolne poloty `table.remove(_freeSlots)` bez indeksu = z KONCA listy
+  (LIFO) — pierwszy gracz dostawal plot 8, nie 1. Zmienione na `table.remove(_freeSlots, 1)`
+  (FIFO) — wolne poloty przydzielane w kolejnosci Index 1..8, "lepszy" (nizszy numer) zawsze
+  pierwszy.
+- Nowa funkcja `relocateToPlot(player)` teleportuje AKTUALNA postac gracza na
+  `slot.cframe * SPAWN_LOCAL_OFFSET` (`CFrame.new(0,3,25)` — kawalek za `EntranceArch`, Z=30 w
+  lokalnym ukladzie `PlotTemplate`, patrzac w -Z czyli w glab plotu). Wolana z dwoch miejsc:
+  `allocatePlot` (typowa sciezka — postac zwykle juz istnieje na domyslnym spawnie ZANIM profil
+  zdazy zaladowac sie z DataStore) i z nowego `player.CharacterAdded` hooka w `Start()` (respawn
+  po smierci/upadku ma wracac na WLASNY plot, nie do Huba; pokrywa tez rzadki wyscig gdzie postac
+  spawnuje sie PO przydziale plotu).
+- Zweryfikowane live: pierwszy gracz dostal `Plot_<id>` na `PlotAnchor1`, HRP wyladowal ~25 studow
+  od pivota kotwicy (dokladnie promien `SPAWN_LOCAL_OFFSET`), zgodnie z oczekiwaniem.
+
+**Andreas: zapisz plac w Studio (Ctrl+S)** — `ConveyorDir` na 16 sensorach to zmiana w live
+DataModelu, nic nie zapisuje sie automatycznie (kod `PlotService.luau` jest juz w `src/` + git).
+
 ## Stan git
 
 - Branch `main`, lokalnie przed `origin/main` (MAX-SLOT `46ece98` + "nowe Stworki + balans" —

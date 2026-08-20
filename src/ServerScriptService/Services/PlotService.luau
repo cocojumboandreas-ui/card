@@ -39,6 +39,11 @@ local PLOT_COUNT = 8 -- start N (Andreas: "start np. 6-12"), 4x2 siatka -- TYLKO
 
 local EMPTY_BORDER_COLOR = Color3.fromRGB(120, 120, 125) -- przygaszony placeholder, pusty slot
 
+-- Gracz spawnuje NA swoim plocie (nie na domyslnym SpawnLocation w Hubie) -- lokalny offset od
+-- PlotOrigin, kawalek za EntranceArch (Z=30, patrz PlotTemplate), patrzac w -Z czyli w glab plotu
+-- (identyczna orientacja co CFrame.new() -- LookVector (0,0,-1) bez dodatkowej rotacji).
+local SPAWN_LOCAL_OFFSET = CFrame.new(0, 3, 25)
+
 type PlotSlot = { cframe: CFrame, showcase: Model?, showcaseHome: Instance? }
 
 local _profileService = nil
@@ -154,6 +159,23 @@ local function renderAllSlots(player: Player, plotModel: Model)
 	end
 end
 
+-- Teleportuje AKTUALNA postac gracza (jesli juz istnieje) na jego wlasny plot. Wolane zarowno z
+-- allocatePlot (gracz zwykle spawnuje na domyslnym SpawnLocation ZANIM profil zdazy sie zaladowac
+-- z DataStore) jak i z CharacterAdded (respawn po smierci/upadku ma trafiac z powrotem na plot,
+-- nie do Huba).
+local function relocateToPlot(player: Player)
+	local slot = _playerSlot[player]
+	local character = player.Character
+	if not slot or not character then
+		return
+	end
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not hrp then
+		return
+	end
+	character:PivotTo(slot.cframe * SPAWN_LOCAL_OFFSET)
+end
+
 local function allocatePlot(player: Player)
 	if not _template or not _plotsFolder then
 		return
@@ -161,7 +183,10 @@ local function allocatePlot(player: Player)
 	if _playerPlot[player] then
 		return -- już ma plot (np. podwójny ProfileLoaded) -- idempotencja
 	end
-	local slot = table.remove(_freeSlots)
+	-- table.remove(t) bez indeksu zdejmuje z KONCA (LIFO) -- pierwszy gracz dostawalby plot 8
+	-- zamiast 1. table.remove(t, 1) zdejmuje z POCZATKU (FIFO), wiec wolne poloty przydzielane sa
+	-- w kolejnosci Index 1..8 -- "lepszy" (nizszy numer) plot zawsze pierwszy.
+	local slot = table.remove(_freeSlots, 1)
 	if not slot then
 		warn("[PlotService] brak wolnych plotów, gracz " .. player.Name .. " bez plotu")
 		return
@@ -186,6 +211,8 @@ local function allocatePlot(player: Player)
 
 	local data = _profileService and _profileService.GetProfile(player)
 	renderNameplate(clone, player, (data and data.plotLikes) or 0)
+
+	relocateToPlot(player)
 end
 
 local function releasePlot(player: Player)
@@ -335,6 +362,19 @@ function PlotService.Start()
 	_profileService.ProfileReleasing:Connect(function(player: Player)
 		releasePlot(player)
 	end)
+
+	-- CharacterAdded pokrywa dwa przypadki ktorych allocatePlot->relocateToPlot nie zlapie:
+	-- respawn po smierci/upadku (ma wracac na WLASNY plot, nie do domyslnego SpawnLocation w
+	-- Hubie) oraz rzadki wyscig gdzie postac spawnuje sie PO przydziale plotu.
+	local function hookCharacterAdded(player: Player)
+		player.CharacterAdded:Connect(function()
+			relocateToPlot(player)
+		end)
+	end
+	for _, player in Players:GetPlayers() do
+		hookCharacterAdded(player)
+	end
+	Players.PlayerAdded:Connect(hookCharacterAdded)
 
 	Net.get("GetMyPlot").OnServerInvoke = function(player: Player)
 		local plot = _playerPlot[player]
