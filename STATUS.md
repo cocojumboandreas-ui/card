@@ -2449,3 +2449,34 @@ DataModelu, nic nie zapisuje sie automatycznie (kod `PlotService.luau` jest juz 
   patrz `git log` po commicie tej sesji), jeszcze nie `git push`.
 - `cardsw/` w `.gitignore`, nie pojawia sie jako untracked (raw art PNG, backup lokalny
   wystarczy — patrz decyzja w sekcji Faza 2b UI wyzej).
+
+## Konwejery cd. #2 — dwie pary pasow zamienione stronami (2026-08-20)
+
+Feedback po poprzednim fixie: **"wszystkie 7 dzialja ale sa dwie pary ramp obrocne jeszcze. nie
+wiem czemu to nie dziala na wszystkich 8 tak samo."** Odwrocenie `ConveyorDir` (globalne, 16
+sensorow) naprawilo 6 z 8 spoke'ow, ale 2 nadal wygladaly "obrocone".
+
+Diagnoza — trzy hipotezy odrzucone jako przyczyna (wszystkie 16 lane'ow jednorodne):
+znak `ConveyorDir` wzgledem promienia z centrum Huba, parowanie nazw Sensor/Walk, wlasciwosci
+`Texture` (Face/StudsPerTileU/V/offset/assetId). Dopiero test **"po ktorej stronie osi promienia
+lezy Out vs Back"** (`walk.Position` rzutowany na wektor prostopadly do promienia kotwicy) ujawnil
+prawdziwa przyczyne: dla spoke'ow **3 i 5**, fizyczne pozycje `Lane_Out_Walk`/`Lane_Out_Sensor` i
+`Lane_Back_Walk`/`Lane_Back_Sensor` byly ZAMIENIONE stronami wzgledem pozostalych 6 spoke'ow —
+kazdy pas mial poprawny wlasny kierunek (`ConveyorDir` nadal spojny z promieniem, dokladnie jak
+wszedzie indziej), ale caly PAS bocznie "obrocony" o 180° wzgledem osi wlasnej sciezki, wiec
+lewy/prawy pas byl zamieniony miejscami — dokladnie objaw "obroconych ramp".
+
+Fix (live edit-mode, `execute_luau`): zamienione cale `CFrame` (pozycja + rotacja) miedzy
+`Lane3_Out_Walk`<->`Lane3_Back_Walk`, `Lane3_Out_Sensor`<->`Lane3_Back_Sensor`, analogicznie dla
+spoke'u 5. `ConveyorDir` atrybuty NIE ruszane — kazdy sensor zachowal swoj wlasny (juz poprawny)
+kierunek, tylko fizycznie wrocil na wlasciwa strone. Zweryfikowane: po zamianie wszystkie 8
+spoke'ow maja `outSide` po tej samej (ujemnej) stronie promienia co pozostale 6, `dirAligned=true`
+na kazdym. Trzecia zmierzona anomalia (spoke 4, mniejsza odleglosc Out/Back od centerline) okazala
+sie normalna wariancja geometrii tego spoke'u, nie bug — `ConveyorDir` i orientacja tam byly juz
+spojne od poczatku.
+
+`ConveyorArrowsController` przebudowuje strzalki od zera przy kazdym boot klienta (czyta aktualne
+CFrame/atrybuty), wiec swiezy playtest automatycznie pokaze poprawiony uklad bez zmian w kodzie.
+
+**Andreas: zapisz plac w Studio (Ctrl+S)** — to kolejna zmiana tylko w live DataModelu (CFrame 4
+partow), nic w `src/` sie nie zmienilo w tym kroku.
