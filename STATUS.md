@@ -1452,6 +1452,45 @@ widac ze to jest woda?" — czytelny sygnal "jestesmy pod woda" bezposrednio na 
 **Andreas: Ctrl+S w Studio — nowy ModuleScript `Bootstrap.Controllers.UnderwaterBubblesController`
 + zmieniony `Bootstrap.Source` (ORDER), nic nie zapisane na dysku poza `src/`.**
 
+## Babelki — naprawa widocznosci + pole ambientowe na calej mapie (2026-08-20, dwudziesty pierwszy przebieg)
+
+Andreas: "niestety bubbles nie dzialaja nic sie nie dzieje", potem "ten smoke beznadziejny
+wczesniejszy byl fajniejszy i zeby te bobleki tez randomo po mapie szly w gore i znikaly".
+
+1. **Prawdziwa przyczyna "nic sie nie dzieje": NIE ladowanie tekstury** (dwudziesty przebieg
+   blednie zalozyl, ze problem to asset/CDN). Particle renderowal sie od poczatku — byl tylko
+   za maly (0.15-0.5 studa) i za blisko bieli/jasnego fioletu otoczenia (biale buty postaci,
+   jasna podloga Placu), wiec wizualnie znikal podczas normalnej gry. Potwierdzone drabinka
+   rozmiarow na prawdziwym Attachmencie postaci z nasyconym cyanem: 0.6 studa niewidoczne, 1.2
+   ledwo widoczne, 1.6 wyraznie widoczne. Fix: `Size` 0.6->1.3 (ambient) / 0.7->1.5 (burst),
+   `Color3.fromRGB(140,220,255)` (nasycony cyan, nie pastel).
+2. **Tekstura zmieniona na pusty `Texture = ""`** (domyslny okragly ksztalt Robloxa) zamiast
+   `rbxasset://textures/particles/smoke_main.dds` — Andreas: "ten smoke beznadziejny", wygladal
+   jak rozmyta chmurka, nie banka. Pusty Texture = czysty okragly ksztalt, zero zaleznosci od CDN.
+3. **Nowa funkcja `spawnMapBubbles()`** — pole 18 niezaleznych punktow rozsianych losowo po
+   `Workspace.Hub.Plaza.PlazaFloor` (nie tylko okolica gracza), kazdy to osobny niewidzialny
+   carrier-Part + Attachment + ParticleEmitter z niskim `Rate` (0.15-0.5) i dlugim `Lifetime`
+   (4-7s) — rzadkie, niesynchronizowane banki caly czas widoczne w tle przez cala mape.
+4. **Dwa buglet po drodze, oba naprawione i zweryfikowane w tej samej rundzie:**
+   - `Workspace:FindFirstChild("Hub")` wracalo `nil`, bo `Start()` odpala sie zanim swiat
+     zdazy zreplikowac sie do klienta — fix: `WaitForChild(name, 30)` (ten sam wzorzec co
+     `EssenceTickController`'s `Workspace:WaitForChild("Plots", 30)`) + cale wywolanie w
+     `task.spawn(...)`, zeby nie blokowac reszty `Start()`.
+   - `PlazaFloor` to obrocony slab (`Size=(8,96,96)`) — cienki wymiar (prawdziwa grubosc
+     podlogi) lezy na lokalnej osi X, NIE Y, wiec naiwne `Position.Y + Size.Y/2` dawalo
+     wysokosc 32.3 zamiast prawdziwej ~-11.7 (~44 study za wysoko, banki lecialy przy suficie
+     mapy zamiast od podlogi). Fix: `Workspace:Raycast()` w dol z wysoka dla kazdego punktu
+     (`RaycastParams` z `FilterType=Include`, `FilterDescendantsInstances={floor}`) —
+     odporne na orientacje Partu.
+5. **Weryfikacja (playtest, `eval_client_runtime` + `capture_screenshot target=client-1`):**
+   17/18 `MapBubbleSpot` wystrzelilo raycastem, wszystkie na `Y ≈ -11.7` (prawdziwa wysokosc
+   podlogi, nie stary bledny ~32). Zrzut ekranu z poziomu podlogi (kamera Scriptable, menu
+   startowe `Rune_RunFlow` tymczasowo `Enabled=false` tylko do zrzutu diagnostycznego,
+   przywrocone od razu potem) potwierdza cyan-owe banki unoszace sie w gore znad Placu.
+
+**Andreas: Ctrl+S w Studio — zmieniony `Bootstrap.Controllers.UnderwaterBubblesController`
+(tekstura, rozmiar/kolor, nowa funkcja `spawnMapBubbles`), nic nie zapisane na dysku poza `src/`.**
+
 ## Odds-bug fix (compliance, 2026-08-18)
 
 **Problem:** `PolicyService.computeTierOdds` (tabela szans pokazywana graczowi, Krok 4b audytu
